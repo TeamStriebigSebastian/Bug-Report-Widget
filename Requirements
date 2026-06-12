@@ -1,0 +1,241 @@
+# Requirement: Browser Extension for Local Bug Report Capture
+
+## Goal
+
+We want to test JavaScript code as a browser extension to support structured bug reporting.
+
+The extension shall provide a browser button that allows the user to create a bug report for the currently active page. The user clicks the button after observing a bug. Since the user may not know how to reproduce the issue, the extension shall continuously keep a small local history of recent technical events and user interactions.
+
+The generated bug report shall be exported as a downloadable JSON file.
+
+## Core Concept
+
+The extension shall run locally in the browser and maintain a limited in-memory event history for the active tab.
+
+When the user clicks the bug report button, the extension shall export the current page context together with the recently captured event history.
+
+The purpose is to provide enough context to help developers understand and reproduce the bug without recording user content, personal data, credentials, secrets, or sensitive information.
+
+## Captured Page Metadata
+
+The bug report shall include the following metadata:
+
+* Current page URL
+* Browser user agent
+* Viewport size
+* Screen resolution
+* Current scroll position
+* Current zoom level, if technically available
+* Timestamp of bug report creation
+* Extension version
+* Browser name and version, if technically available
+
+## Local Interaction Buffer
+
+The extension shall maintain an in-memory ring buffer for the active tab.
+
+The buffer shall contain:
+
+* The last 50 relevant user interactions, or
+* The last 5 minutes of relevant user interactions,
+
+whichever is smaller.
+
+Relevant interactions include:
+
+* Click events
+* Submit events
+* Change events, without storing field values
+* Route or navigation changes
+* Selected high-level keyboard actions, without storing typed characters
+* Scroll position snapshots
+* Viewport resize events
+
+Each captured interaction shall include:
+
+* Timestamp
+* Event type
+* Current URL
+* Sanitized target selector
+* Target tag name
+* ARIA role, if available
+* Sanitized visible label, if explicitly allowed
+* Viewport coordinates for click events
+* Current scroll position
+
+## Events That Must Not Be Captured
+
+The extension shall not capture or store:
+
+* Mouse movement events
+* Pointer movement events
+* Raw keypress events
+* Typed characters
+* Form field values
+* Password field values
+* Clipboard contents
+* Full DOM snapshots
+* Screenshots
+* Video recordings
+
+Keyboard events may only be captured as high-level interaction metadata, for example “Enter pressed” or “Escape pressed”, and must not contain typed characters.
+
+## Console Logs
+
+The extension shall capture console output generated while the extension is active on the page.
+
+Captured console data shall include:
+
+* Timestamp
+* Log level
+* Message text after sanitization
+* Source, if available
+
+The console log buffer shall be limited to the latest 100 entries.
+
+Console logs shall be sanitized before being written to the JSON export.
+
+## JavaScript Errors
+
+The extension shall capture JavaScript runtime errors and unhandled promise rejections generated while the extension is active on the page.
+
+Captured error data shall include:
+
+* Timestamp
+* Error message after sanitization
+* Error type
+* Stack trace, if available and sanitized
+* Source file, line, and column, if available
+
+The error buffer shall be limited to the latest 50 entries.
+
+## Network Request Metadata
+
+The extension shall capture network request metadata for requests made while the extension is active.
+
+Captured network data shall include:
+
+* Timestamp
+* HTTP method
+* Request URL after sanitization
+* Request type, if available
+* Response status code, if available
+* Request duration, if available
+* Error state, if applicable
+
+The network buffer shall be limited to the latest 200 metadata entries.
+
+The extension shall not store:
+
+* Cookies
+* Authorization headers
+* API keys
+* Access tokens
+* Refresh tokens
+* Session IDs
+* Request bodies by default
+* Response bodies by default
+* Full request headers by default
+* Full response headers by default
+
+Query parameters shall either be removed completely or sanitized using an allowlist.
+
+## Privacy and Data Protection
+
+The generated JSON file must not contain personal data, credentials, secrets, tokens, or customer-specific confidential information.
+
+Sensitive data protection shall use multiple layers:
+
+1. Data minimization: only collect information required for debugging.
+2. Allowlist-based collection: prefer explicitly allowed fields over broad data collection.
+3. Field-level exclusion: never collect known sensitive fields.
+4. Sanitization: remove or mask sensitive patterns before writing the JSON file.
+5. Final validation: check the generated JSON before download.
+
+Regex-based sanitization may be used as an additional protection mechanism but must not be the only protection mechanism.
+
+The sanitizer shall remove or mask at least:
+
+* Email addresses
+* Phone numbers
+* Access tokens
+* Refresh tokens
+* Bearer tokens
+* API keys
+* Session IDs
+* Cookies
+* Authorization headers
+* Password-like fields
+* Secret-like fields
+* Personal identifiers in query parameters
+
+## JSON Export
+
+When the user clicks the bug report button, the extension shall generate a structured JSON file and trigger a local download.
+
+The JSON file shall include:
+
+* Schema version
+* Page metadata
+* Browser metadata
+* Last captured user interactions
+* Captured console logs
+* Captured JavaScript errors
+* Captured network request metadata
+* Sanitization summary
+* Known capture limitations
+
+The JSON structure shall be stable and versioned to allow later automated processing.
+
+## User Control
+
+The export shall only be triggered by explicit user action.
+
+Before the JSON file is downloaded, the extension should show a short summary of the information that will be included in the bug report.
+
+The user shall be able to cancel the export.
+
+The captured event history shall remain local to the browser and shall only be written to a downloadable JSON file after explicit user action.
+
+## Performance Requirements
+
+The extension must not noticeably slow down normal browser usage.
+
+The extension shall avoid high-frequency event logging.
+
+Scroll and resize events shall be throttled.
+
+The extension shall not traverse or serialize the full DOM on every event.
+
+The extension shall not store large objects, screenshots, videos, request bodies, or response bodies.
+
+The initial implementation shall use in-memory storage per tab.
+
+Persistent storage shall only be used if reload-resilient bug capture is required in a later version.
+
+## Capture Limitations
+
+The extension is only required to include data captured while it was active on the current page.
+
+The extension is not required to reconstruct console logs, network requests, UI events, or errors that happened before the extension was initialized.
+
+The extension is not required to capture data from browser-internal pages, restricted pages, or cross-origin iframes where browser extension access is limited.
+
+## Acceptance Criteria
+
+* A user can click the browser extension button and download a JSON bug report.
+* The JSON contains the current URL, user agent, viewport size, screen resolution, scroll position, timestamp, and schema version.
+* The extension keeps a local in-memory ring buffer of the last 50 relevant interactions or the last 5 minutes, whichever is smaller.
+* The JSON contains the captured interaction history.
+* The JSON contains captured console logs generated while the extension was active.
+* The JSON contains captured JavaScript errors generated while the extension was active.
+* The JSON contains captured network request metadata generated while the extension was active.
+* The JSON does not contain cookies, authorization headers, access tokens, refresh tokens, API keys, passwords, session IDs, request bodies, or response bodies.
+* Query parameters are either removed or sanitized.
+* Form input values are not stored.
+* Typed characters are not stored.
+* Mouse movement and raw pointer movement are not stored.
+* Scroll and resize events are throttled.
+* The JSON file contains a sanitization summary.
+* The JSON file contains known capture limitations.
+* The export can be cancelled before download.

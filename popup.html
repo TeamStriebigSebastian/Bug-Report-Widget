@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bug Report</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <div class="popup-header">
+      <div class="popup-logo">🐛</div>
+      <div class="popup-title">Bug Report</div>
+      <div class="popup-version" id="versionLabel">v1.0.0</div>
+    </div>
+
+    <!-- Loading State -->
+    <div class="popup-state" id="stateLoading">
+      <div class="spinner"></div>
+      <p class="popup-status-text">Collecting data…</p>
+    </div>
+
+    <!-- Preview State -->
+    <div class="popup-state hidden" id="statePreview">
+      <p class="popup-info-text">
+        The following information will be included in the bug report for the current page:
+      </p>
+
+      <div class="popup-url" id="previewUrl" title=""></div>
+
+      <div class="popup-stats">
+        <div class="stat-card">
+          <div class="stat-icon">👆</div>
+          <div class="stat-value" id="statInteractions">0</div>
+          <div class="stat-label">Interactions</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">📋</div>
+          <div class="stat-value" id="statConsoleLogs">0</div>
+          <div class="stat-label">Console Logs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">⚠️</div>
+          <div class="stat-value" id="statErrors">0</div>
+          <div class="stat-label">JS Errors</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon">🌐</div>
+          <div class="stat-value" id="statNetwork">0</div>
+          <div class="stat-label">Network Req.</div>
+        </div>
+      </div>
+
+      <p class="popup-privacy-note">
+        🔒 Sensitive data (emails, tokens, passwords, API keys) will be automatically redacted.
+      </p>
+
+      <div class="popup-actions">
+        <button class="btn btn-primary" id="btnDownload">
+          <span class="btn-icon">📥</span>
+          Download Report
+        </button>
+        <button class="btn btn-secondary" id="btnCancel">
+          Cancel
+        </button>
+      </div>
+    </div>
+
+    <!-- Success State -->
+    <div class="popup-state hidden" id="stateSuccess">
+      <div class="success-icon">✅</div>
+      <p class="popup-status-text">Report downloaded!</p>
+      <p class="popup-info-text subtle">
+        Please upload the JSON file to your support portal.
+      </p>
+    </div>
+
+    <!-- Error State -->
+    <div class="popup-state hidden" id="stateError">
+      <div class="error-icon">❌</div>
+      <p class="popup-status-text">Something went wrong</p>
+      <p class="popup-info-text subtle" id="errorMessage"></p>
+      <div class="popup-actions">
+        <button class="btn btn-secondary" id="btnRetry">Retry</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

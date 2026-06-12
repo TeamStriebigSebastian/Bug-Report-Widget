@@ -1,0 +1,40 @@
+# Bug Report Widget — Website Version
+
+A self-contained JavaScript widget you can embed in any website. No browser extension needed.
+
+## Integration
+
+Add a single `<script>` tag to your website, before the closing `</body>` tag:
+
+```html
+<script src="bug-report.js"></script>
+```
+
+That's it. A floating 🐛 button appears in the bottom-right corner.
+
+## How It Works
+
+1. The script runs in the background, capturing interactions, console logs, JS errors, and network requests
+2. When a user clicks the 🐛 button, a modal shows a preview of what will be included
+3. The user can download the report as JSON or cancel
+4. All data is sanitized (emails, tokens, passwords, API keys are redacted)
+
+## Differences from the Extension Version
+
+| Feature | Extension | Website Widget |
+|---------|-----------|----------------|
+| Network capture | `webRequest` API (all requests) | `fetch()` + `XMLHttpRequest` only |
+| Installation | Chrome Extensions page | Single `<script>` tag |
+| Scope | All websites | Only the website that includes it |
+| Script/image loads | ✅ Captured | ❌ Not captured |
+
+## Testing the Demo
+
+```bash
+# From the website/ directory, start a local server:
+python3 -m http.server 8080
+
+# Then open http://localhost:8080
+```
+
+Click the demo buttons, fill in the form, scroll, then click the 🐛 button to generate a report.
