@@ -1,16 +1,17 @@
 /**
- * content.js — Content Script for Bug Report Extension
+ * content.js — Content Script for Bug Report Extension (v2.0.0)
  *
  * Captures:
  *  - User interactions (ring buffer, max 50 / 5 min)
  *  - Console logs (max 100)
  *  - JS errors (max 50)
  *  - Page metadata
+ *  - Visual DOM capture via layout2vector Canvas Writer
  *
  * Communicates with background.js via chrome.runtime messaging.
  */
 
-const EXTENSION_VERSION = '1.0.0';
+const EXTENSION_VERSION = '2.0.0';
 
 // ═══════════════════════════════════════════════════════════════════
 //  RING BUFFER — User Interactions
@@ -42,7 +43,12 @@ const InteractionBuffer = (() => {
     return buffer.map(({ _ts, ...rest }) => rest);
   }
 
-  return { add, getAll };
+  function getRaw() {
+    evictStale();
+    return [...buffer];
+  }
+
+  return { add, getAll, getRaw };
 })();
 
 // ═══════════════════════════════════════════════════════════════════
@@ -202,7 +208,7 @@ function buildBaseEntry(type, el) {
   };
 }
 
-// Click events
+// Click events (must explicitly capture X/Y viewport coordinates)
 document.addEventListener('click', (e) => {
   const entry = buildBaseEntry('click', e.target);
   entry.viewportCoordinates = {
@@ -445,16 +451,243 @@ function collectPageMetadata() {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+//  LAYOUT2VECTOR — Canvas-Based DOM Visual Capture
+// ═══════════════════════════════════════════════════════════════════
+
+/**
+ * Capture the visual state of the page by extracting DOM geometry
+ * and rendering it onto an HTML5 Canvas. Then annotate with click
+ * coordinates from the interaction buffer.
+ *
+ * Returns a Base64 PNG data URL string.
+ */
+function captureVisualState() {
+  const vpWidth = window.innerWidth;
+  const vpHeight = window.innerHeight;
+  const dpr = window.devicePixelRatio || 1;
+
+  // Create offscreen canvas at device resolution for sharpness
+  const canvas = document.createElement('canvas');
+  canvas.width = vpWidth * dpr;
+  canvas.height = vpHeight * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  // Fill background (page bg)
+  const bodyStyle = window.getComputedStyle(document.body);
+  const htmlStyle = window.getComputedStyle(document.documentElement);
+  const pageBg = bodyStyle.backgroundColor !== 'rgba(0, 0, 0, 0)'
+    ? bodyStyle.backgroundColor
+    : (htmlStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' ? htmlStyle.backgroundColor : '#ffffff');
+  ctx.fillStyle = pageBg;
+  ctx.fillRect(0, 0, vpWidth, vpHeight);
+
+  // Walk visible DOM elements and paint them
+  const elements = document.querySelectorAll('*');
+  const scrollX = window.scrollX;
+  const scrollY = window.scrollY;
+
+  for (const el of elements) {
+    // Skip script, style, meta, head elements and hidden elements
+    const tag = el.tagName;
+    if (['SCRIPT', 'STYLE', 'META', 'LINK', 'HEAD', 'TITLE', 'NOSCRIPT', 'BR'].includes(tag)) continue;
+
+    try {
+      const rect = el.getBoundingClientRect();
+
+      // Skip elements fully outside viewport
+      if (rect.bottom < 0 || rect.top > vpHeight || rect.right < 0 || rect.left > vpWidth) continue;
+      // Skip invisible elements
+      if (rect.width === 0 || rect.height === 0) continue;
+
+      const style = window.getComputedStyle(el);
+      if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+
+      const x = rect.left;
+      const y = rect.top;
+      const w = rect.width;
+      const h = rect.height;
+
+      // Draw background if not transparent
+      const bg = style.backgroundColor;
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+        ctx.fillStyle = bg;
+
+        // Handle border-radius
+        const br = parseFloat(style.borderRadius) || 0;
+        if (br > 0) {
+          drawRoundRect(ctx, x, y, w, h, Math.min(br, w / 2, h / 2));
+          ctx.fill();
+        } else {
+          ctx.fillRect(x, y, w, h);
+        }
+      }
+
+      // Draw border if present
+      const borderWidth = parseFloat(style.borderTopWidth) || 0;
+      if (borderWidth > 0) {
+        const borderColor = style.borderTopColor;
+        if (borderColor && borderColor !== 'rgba(0, 0, 0, 0)') {
+          ctx.strokeStyle = borderColor;
+          ctx.lineWidth = borderWidth;
+          const br = parseFloat(style.borderRadius) || 0;
+          if (br > 0) {
+            drawRoundRect(ctx, x, y, w, h, Math.min(br, w / 2, h / 2));
+            ctx.stroke();
+          } else {
+            ctx.strokeRect(x, y, w, h);
+          }
+        }
+      }
+
+      // Draw text for direct text-containing elements
+      if (isDirectTextNode(el)) {
+        const text = getDirectText(el).substring(0, 200);
+        if (text) {
+          const fontSize = parseFloat(style.fontSize) || 14;
+          const fontWeight = style.fontWeight || 'normal';
+          const fontFamily = style.fontFamily || 'sans-serif';
+          ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+          ctx.fillStyle = style.color || '#000000';
+          ctx.textBaseline = 'top';
+
+          // Clip text to element bounds
+          ctx.save();
+          ctx.beginPath();
+          ctx.rect(x, y, w, h);
+          ctx.clip();
+
+          const textX = x + (parseFloat(style.paddingLeft) || 0);
+          const textY = y + (parseFloat(style.paddingTop) || 0);
+          ctx.fillText(text, textX, textY + (h - fontSize) / 2);
+          ctx.restore();
+        }
+      }
+
+      // Draw images as colored placeholder rectangles
+      if (tag === 'IMG' || tag === 'SVG' || tag === 'VIDEO' || tag === 'CANVAS') {
+        ctx.fillStyle = 'rgba(99, 102, 241, 0.1)';
+        ctx.fillRect(x, y, w, h);
+        ctx.strokeStyle = 'rgba(99, 102, 241, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(x, y, w, h);
+
+        // Draw icon placeholder
+        ctx.fillStyle = 'rgba(99, 102, 241, 0.5)';
+        ctx.font = `${Math.min(w, h, 24) * 0.5}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(tag === 'IMG' ? '🖼' : tag === 'SVG' ? '◇' : '▶', x + w / 2, y + h / 2);
+        ctx.textAlign = 'start';
+      }
+    } catch (e) {
+      // Skip elements that throw
+    }
+  }
+
+  // ── Draw click-path annotations ──────────────────────────
+  const rawInteractions = InteractionBuffer.getRaw();
+  const clicks = rawInteractions.filter(e => e.eventType === 'click' && e.viewportCoordinates);
+  let clickIndex = 1;
+
+  for (const click of clicks) {
+    const cx = click.viewportCoordinates.x;
+    const cy = click.viewportCoordinates.y;
+
+    // Draw outer red circle with glow
+    ctx.beginPath();
+    ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.25)';
+    ctx.fill();
+
+    // Draw red circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#ef4444';
+    ctx.fill();
+
+    // Draw white border
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Draw number
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(clickIndex), cx, cy);
+    ctx.textAlign = 'start';
+
+    clickIndex++;
+  }
+
+  // Export as Base64 PNG
+  return canvas.toDataURL('image/png');
+}
+
+/**
+ * Helper: draw a rounded rectangle path.
+ */
+function drawRoundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+/**
+ * Check if an element directly contains text (not via child elements).
+ */
+function isDirectTextNode(el) {
+  for (const node of el.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Get direct text content from an element (excluding child elements).
+ */
+function getDirectText(el) {
+  let text = '';
+  for (const node of el.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      text += node.textContent;
+    }
+  }
+  return text.trim();
+}
+
+// ═══════════════════════════════════════════════════════════════════
 //  MESSAGING — Respond to background.js requests
 // ═══════════════════════════════════════════════════════════════════
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'GET_BUG_REPORT_DATA') {
+    // Capture visual state at the moment of report generation
+    let screenshotBase64 = null;
+    try {
+      screenshotBase64 = captureVisualState();
+    } catch (e) {
+      // Visual capture failed; continue without screenshot
+    }
+
     sendResponse({
       pageMetadata: collectPageMetadata(),
       interactions: InteractionBuffer.getAll(),
       consoleLogs: ConsoleBuffer.getAll(),
       jsErrors: ErrorBuffer.getAll(),
+      screenshotBase64,
     });
     return true; // Keep the message channel open
   }
@@ -465,6 +698,38 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       interactionCount: InteractionBuffer.getAll().length,
       consoleLogCount: ConsoleBuffer.getAll().length,
       jsErrorCount: ErrorBuffer.getAll().length,
+    });
+    return true;
+  }
+
+  if (message.type === 'PROMPT_IST_SOLL') {
+    // Prompt user for Ist/Soll descriptions using native browser prompts
+    const actual = window.prompt(
+      'Ist-Zustand: Was passiert aktuell? Bitte beschreiben Sie das beobachtete Verhalten.',
+      ''
+    );
+
+    // If user cancels the first prompt, abort the entire flow
+    if (actual === null) {
+      sendResponse({ cancelled: true });
+      return true;
+    }
+
+    const expected = window.prompt(
+      'Soll-Zustand: Was hätten Sie erwartet? Bitte beschreiben Sie das gewünschte Verhalten.',
+      ''
+    );
+
+    // If user cancels the second prompt, abort the entire flow
+    if (expected === null) {
+      sendResponse({ cancelled: true });
+      return true;
+    }
+
+    sendResponse({
+      cancelled: false,
+      actual: actual || 'Keine Angabe',
+      expected: expected || 'Keine Angabe',
     });
     return true;
   }

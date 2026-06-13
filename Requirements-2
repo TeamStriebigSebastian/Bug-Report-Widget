@@ -1,0 +1,244 @@
+# Requirement: Privacy-First Local Bug Report Capture
+
+## Goal
+
+We want to implement a client-side JavaScript mechanism (e.g., via a browser extension or embedded script) to support structured bug reporting.
+
+The tool shall provide a button that allows the user to create a bug report for the currently active page. Since the user may not know how to reproduce the issue, the tool shall continuously keep a small local history of recent technical events and user interactions. Additionally, the tool must prompt the user for a manual error description and capture the visual state of the application.
+
+The generated bug report shall be exported as a single, downloadable HTML file containing an annotated screenshot and all structured technical data.
+
+## Core Concept
+
+The tool shall run locally in the browser and maintain a limited in-memory event history for the active tab.
+
+When the user clicks the bug report button, the tool shall query the user for the expected and actual behavior, capture a DOM-based visual snapshot of the page, map recent interactions onto this snapshot, and export the entire context.
+
+The purpose is to provide enough context to help developers understand and reproduce the bug without recording user content, personal data, credentials, secrets, relying on external cloud backends, or using performance-heavy native video recordings.
+
+## Captured Page Metadata
+
+The bug report shall include the following metadata:
+
+* Current page URL
+* Browser user agent
+* Viewport size
+* Screen resolution
+* Current scroll position
+* Current zoom level, if technically available
+* Timestamp of bug report creation
+* Tool version
+* Browser name and version, if technically available
+
+## Structured User Input (Ist / Soll)
+
+Before generating the report, the user must be prompted to manually describe the context.
+The tool shall use simple, native browser prompts to capture:
+
+* **Ist-Zustand (Actual):** A description of what is currently happening.
+* **Soll-Zustand (Expected):** A description of what the user expected to happen.
+
+If the user cancels or leaves the prompt empty, a default fallback (e.g., "Keine Angabe") shall be used.
+
+## Local Interaction Buffer
+
+The tool shall maintain an in-memory ring buffer for the active tab.
+
+The buffer shall contain:
+
+* The last 50 relevant user interactions, or
+* The last 5 minutes of relevant user interactions,
+
+whichever is smaller.
+
+Relevant interactions include:
+
+* Click events (must explicitly capture X/Y viewport coordinates for later annotation)
+* Submit events
+* Change events, without storing field values
+* Route or navigation changes
+* Selected high-level keyboard actions, without storing typed characters
+* Scroll position snapshots
+* Viewport resize events
+
+Each captured interaction shall include:
+
+* Timestamp
+* Event type
+* Current URL
+* Sanitized target selector
+* Target tag name
+* ARIA role, if available
+* Sanitized visible label, if explicitly allowed
+* Viewport coordinates (for click events)
+* Current scroll position
+
+## Visual Capture & Annotation
+
+Instead of utilizing native screen capture APIs (which require obtrusive permissions) or flawed CSS-reconstruction libraries, the tool shall capture the visual state of the application using `layout2vector` (specifically the Canvas Writer).
+
+* The tool shall extract the true geometry of the DOM and render it onto an internal HTML5 Canvas.
+* Using the X/Y coordinates saved in the Local Interaction Buffer, the tool shall programmatically draw annotations (e.g., numbered red circles) directly onto the Canvas to visualize the chronological click path of the user.
+* The annotated Canvas shall be exported as a Base64 PNG string to be embedded into the final report.
+
+## Events That Must Not Be Captured
+
+The tool shall not capture or store:
+
+* Mouse movement events
+* Pointer movement events
+* Raw keypress events
+* Typed characters
+* Form field values
+* Password field values
+* Clipboard contents
+* Full DOM tree serializations
+* Native video or screen recordings (`getDisplayMedia`)
+
+Keyboard events may only be captured as high-level interaction metadata, for example “Enter pressed” or “Escape pressed”, and must not contain typed characters.
+
+## Console Logs
+
+The tool shall capture console output generated while the tool is active on the page.
+
+Captured console data shall include:
+
+* Timestamp
+* Log level
+* Message text after sanitization
+* Source, if available
+
+The console log buffer shall be limited to the latest 100 entries. Console logs shall be sanitized before being written to the export.
+
+## JavaScript Errors
+
+The tool shall capture JavaScript runtime errors and unhandled promise rejections generated while it is active on the page.
+
+Captured error data shall include:
+
+* Timestamp
+* Error message after sanitization
+* Error type
+* Stack trace, if available and sanitized
+* Source file, line, and column, if available
+
+The error buffer shall be limited to the latest 50 entries.
+
+## Network Request Metadata
+
+The tool shall capture network request metadata for requests made while it is active.
+
+Captured network data shall include:
+
+* Timestamp
+* HTTP method
+* Request URL after sanitization
+* Request type, if available
+* Response status code, if available
+* Request duration, if available
+* Error state, if applicable
+
+The network buffer shall be limited to the latest 200 metadata entries.
+
+The tool shall not store:
+
+* Cookies
+* Authorization headers
+* API keys
+* Access tokens
+* Refresh tokens
+* Session IDs
+* Request bodies by default
+* Response bodies by default
+* Full request headers by default
+* Full response headers by default
+
+Query parameters shall either be removed completely or sanitized using an allowlist.
+
+## Privacy and Data Protection
+
+The generated export must not contain personal data, credentials, secrets, tokens, or customer-specific confidential information.
+
+Sensitive data protection shall use multiple layers:
+
+1. Data minimization: only collect information required for debugging.
+2. Allowlist-based collection: prefer explicitly allowed fields over broad data collection.
+3. Field-level exclusion: never collect known sensitive fields.
+4. Sanitization: remove or mask sensitive patterns before compiling the export.
+5. Final validation: check the generated dataset before download.
+
+Regex-based sanitization may be used as an additional protection mechanism but must not be the only protection mechanism.
+
+The sanitizer shall remove or mask at least:
+
+* Email addresses
+* Phone numbers
+* Access tokens
+* Refresh tokens
+* Bearer tokens
+* API keys
+* Session IDs
+* Cookies
+* Authorization headers
+* Password-like fields
+* Secret-like fields
+* Personal identifiers in query parameters
+
+## Single HTML Export
+
+When the user concludes the bug report flow, the tool shall generate a structured, standalone HTML file and trigger a local download.
+
+The HTML file shall act as a developer dashboard and include:
+
+* Schema version & Capture Limitations
+* Page and Browser metadata
+* The user's provided "Ist-Zustand" and "Soll-Zustand" descriptions
+* The Base64 encoded annotated screenshot (rendered via `<img>` tag)
+* The sanitized event history, console logs, errors, and network metadata formatted as readable JSON within the HTML body.
+
+The embedded JSON structure shall be stable and versioned to allow later automated processing or extraction from the HTML file if needed.
+
+## User Control
+
+The export shall only be triggered by explicit user action.
+
+Before the HTML file is compiled and downloaded, the user shall be prompted for their manual input. The user shall be able to cancel the export during the prompt phase.
+
+The captured event history shall remain local to the browser's RAM and shall only be written to a downloadable file after explicit user action.
+
+## Performance Requirements
+
+The tool must not noticeably slow down normal browser usage.
+
+The tool shall avoid high-frequency event logging. Scroll and resize events shall be throttled.
+
+The tool shall not traverse or serialize the full DOM on every event. The use of `layout2vector` for DOM extraction shall only occur once precisely at the moment the report is generated.
+
+The tool shall not store large objects, native screenshots, videos, request bodies, or response bodies in memory.
+
+The initial implementation shall use in-memory storage per tab. Persistent storage shall only be used if reload-resilient bug capture is required in a later version.
+
+## Capture Limitations
+
+The tool is only required to include data captured while it was active on the current page.
+
+The tool is not required to reconstruct console logs, network requests, UI events, or errors that happened before initialization.
+
+The tool is not required to capture data from browser-internal pages, restricted pages, or cross-origin iframes where script access is limited.
+
+## Acceptance Criteria
+
+* A user can click the bug report button and successfully download a single HTML bug report.
+* The user is prompted for an "Ist-Zustand" and "Soll-Zustand" before generation, and these values are visible in the final HTML.
+* The HTML contains the current URL, user agent, viewport size, screen resolution, scroll position, timestamp, and schema version.
+* The tool keeps a local in-memory ring buffer of the last 50 relevant interactions or the last 5 minutes, whichever is smaller.
+* The HTML contains an embedded, Base64-encoded screenshot of the current page generated via `layout2vector`.
+* The embedded screenshot visibly displays the chronologically numbered click coordinates from the interaction buffer.
+* The HTML embeds the captured interaction history, console logs, JavaScript errors, and network request metadata as structured JSON text.
+* The embedded JSON does not contain cookies, authorization headers, access tokens, refresh tokens, API keys, passwords, session IDs, request bodies, or response bodies.
+* Query parameters are either removed or sanitized.
+* Form input values and typed characters are not stored.
+* Mouse movement, raw pointer movement, and native video streams are not stored.
+* Scroll and resize events are throttled.
+* The HTML file contains a sanitization summary and known capture limitations.
+* The export flow can be cancelled by the user prior to download.

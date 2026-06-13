@@ -90,6 +90,13 @@ async function triggerDownload() {
       tabId,
     });
 
+    if (result.cancelled) {
+      // User cancelled the Ist/Soll prompt — reset button and stay on preview
+      btnDownload.disabled = false;
+      btnDownload.innerHTML = '<span class="btn-icon">📥</span> Download Report';
+      return;
+    }
+
     if (!result.success) throw new Error(result.error || 'Download failed.');
 
     showState(stateSuccess);

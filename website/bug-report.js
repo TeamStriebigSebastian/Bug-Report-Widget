@@ -1,14 +1,19 @@
 /**
- * Bug Report Widget — Website Edition
+ * Bug Report Widget — Website Edition (v2.0.0)
  * Drop-in script for any website. No extension needed.
  * Usage: <script src="bug-report.js"></script>
+ *
+ * v2.0.0 Changes:
+ *  - Ist/Soll user prompts before report generation
+ *  - Visual capture via layout2vector Canvas Writer with click-path annotations
+ *  - HTML dashboard export instead of JSON
  */
 (function () {
   'use strict';
   if (window.__BugReportLoaded) return;
   window.__BugReportLoaded = true;
 
-  const VERSION = '1.0.0';
+  const VERSION = '2.0.0';
   const MAX_INTERACTIONS = 50;
   const MAX_AGE_MS = 5 * 60 * 1000;
   const MAX_CONSOLE = 100;
@@ -35,6 +40,7 @@
   ]);
   const PATTERNS = [
     { name:'email', p:/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, r:'[REDACTED_EMAIL]' },
+    { name:'phone', p:/(?<![a-zA-Z0-9])(?:\+?\d{1,4}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,5}(?![a-zA-Z0-9])/g, r:'[REDACTED_PHONE]' },
     { name:'bearer_token', p:/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, r:'Bearer [REDACTED_TOKEN]' },
     { name:'jwt', p:/eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_.+/=]*/g, r:'[REDACTED_JWT]' },
     { name:'api_key', p:/(?:api[_\-]?key|apikey)\s*[:=]\s*["']?[A-Za-z0-9\-._~+/]{8,}["']?/gi, r:'[REDACTED_API_KEY]' },
@@ -170,6 +176,12 @@
     return { browserName: n, browserVersion: v };
   }
 
+  function escapeHtml(str) {
+    if (!str || typeof str !== 'string') return str || '';
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+  }
+
   // ═══════════════════════════════════════════════════════════════
   //  INTERACTION TRACKING
   // ═══════════════════════════════════════════════════════════════
@@ -284,6 +296,296 @@
   };
 
   // ═══════════════════════════════════════════════════════════════
+  //  LAYOUT2VECTOR — Canvas-Based DOM Visual Capture
+  // ═══════════════════════════════════════════════════════════════
+
+  function drawRoundRect(ctx, x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function isDirectTextNode(el) {
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent.trim().length > 0) return true;
+    }
+    return false;
+  }
+
+  function getDirectText(el) {
+    let text = '';
+    for (const node of el.childNodes) {
+      if (node.nodeType === Node.TEXT_NODE) text += node.textContent;
+    }
+    return text.trim();
+  }
+
+  /**
+   * Capture the visual state of the page via layout2vector Canvas Writer.
+   * Draws DOM geometry onto an HTML5 Canvas and annotates click coordinates.
+   * Returns a Base64 PNG data URL string.
+   */
+  function captureVisualState() {
+    const vpW = innerWidth;
+    const vpH = innerHeight;
+    const dpr = devicePixelRatio || 1;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = vpW * dpr;
+    canvas.height = vpH * dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.scale(dpr, dpr);
+
+    // Page background
+    const bodyStyle = getComputedStyle(document.body);
+    const htmlStyle = getComputedStyle(document.documentElement);
+    const pageBg = bodyStyle.backgroundColor !== 'rgba(0, 0, 0, 0)'
+      ? bodyStyle.backgroundColor
+      : (htmlStyle.backgroundColor !== 'rgba(0, 0, 0, 0)' ? htmlStyle.backgroundColor : '#ffffff');
+    ctx.fillStyle = pageBg;
+    ctx.fillRect(0, 0, vpW, vpH);
+
+    // Walk visible DOM elements
+    const elements = document.querySelectorAll('*');
+    for (const el of elements) {
+      const tag = el.tagName;
+      if (['SCRIPT','STYLE','META','LINK','HEAD','TITLE','NOSCRIPT','BR'].includes(tag)) continue;
+      // Skip our own widget elements
+      if (el.id === 'br-widget-btn' || el.id === 'br-widget-overlay' || el.closest('#br-widget-overlay')) continue;
+
+      try {
+        const rect = el.getBoundingClientRect();
+        if (rect.bottom < 0 || rect.top > vpH || rect.right < 0 || rect.left > vpW) continue;
+        if (rect.width === 0 || rect.height === 0) continue;
+
+        const style = getComputedStyle(el);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+
+        const x = rect.left, y = rect.top, w = rect.width, h = rect.height;
+
+        // Background
+        const bg = style.backgroundColor;
+        if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') {
+          ctx.fillStyle = bg;
+          const br = parseFloat(style.borderRadius) || 0;
+          if (br > 0) { drawRoundRect(ctx, x, y, w, h, Math.min(br, w/2, h/2)); ctx.fill(); }
+          else ctx.fillRect(x, y, w, h);
+        }
+
+        // Border
+        const bw = parseFloat(style.borderTopWidth) || 0;
+        if (bw > 0) {
+          const bc = style.borderTopColor;
+          if (bc && bc !== 'rgba(0, 0, 0, 0)') {
+            ctx.strokeStyle = bc; ctx.lineWidth = bw;
+            const br = parseFloat(style.borderRadius) || 0;
+            if (br > 0) { drawRoundRect(ctx, x, y, w, h, Math.min(br, w/2, h/2)); ctx.stroke(); }
+            else ctx.strokeRect(x, y, w, h);
+          }
+        }
+
+        // Text
+        if (isDirectTextNode(el)) {
+          const text = getDirectText(el).substring(0, 200);
+          if (text) {
+            const fontSize = parseFloat(style.fontSize) || 14;
+            ctx.font = `${style.fontWeight || 'normal'} ${fontSize}px ${style.fontFamily || 'sans-serif'}`;
+            ctx.fillStyle = style.color || '#000';
+            ctx.textBaseline = 'top';
+            ctx.save(); ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+            const tx = x + (parseFloat(style.paddingLeft) || 0);
+            ctx.fillText(text, tx, y + (h - fontSize) / 2);
+            ctx.restore();
+          }
+        }
+
+        // Image / media placeholders
+        if (['IMG','SVG','VIDEO','CANVAS'].includes(tag)) {
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.1)';
+          ctx.fillRect(x, y, w, h);
+          ctx.strokeStyle = 'rgba(99, 102, 241, 0.3)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(x, y, w, h);
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.5)';
+          ctx.font = `${Math.min(w, h, 24) * 0.5}px sans-serif`;
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(tag === 'IMG' ? '🖼' : tag === 'SVG' ? '◇' : '▶', x + w/2, y + h/2);
+          ctx.textAlign = 'start';
+        }
+      } catch {}
+    }
+
+    // ── Draw click-path annotations ──────────────────────────
+    const clicks = interactions.filter(e => e.eventType === 'click' && e.viewportCoordinates);
+    let idx = 1;
+    for (const click of clicks) {
+      const cx = click.viewportCoordinates.x, cy = click.viewportCoordinates.y;
+
+      // Outer glow
+      ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(239, 68, 68, 0.25)'; ctx.fill();
+
+      // Red circle
+      ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2);
+      ctx.fillStyle = '#ef4444'; ctx.fill();
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
+
+      // Number
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 10px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(idx), cx, cy);
+      ctx.textAlign = 'start';
+      idx++;
+    }
+
+    return canvas.toDataURL('image/png');
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  HTML REPORT TEMPLATE (inline for widget — no external deps)
+  // ═══════════════════════════════════════════════════════════════
+
+  function syntaxHighlight(json) {
+    if (typeof json !== 'string') json = JSON.stringify(json, null, 2);
+    json = escapeHtml(json);
+    return json.replace(
+      /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+      function (match) {
+        let cls = 'json-number';
+        if (/^"/.test(match)) { cls = /:$/.test(match) ? 'json-key' : 'json-string'; }
+        else if (/true|false/.test(match)) cls = 'json-boolean';
+        else if (/null/.test(match)) cls = 'json-null';
+        return '<span class="' + cls + '">' + match + '</span>';
+      }
+    );
+  }
+
+  function buildHtmlReport(data) {
+    const toolVersion = data.widgetVersion || data.extensionVersion || 'unknown';
+    const reportTime = data.reportTimestamp ? new Date(data.reportTimestamp).toLocaleString('de-DE', {
+      year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'
+    }) : 'N/A';
+    const actual = data.userDescription?.actual || 'Keine Angabe';
+    const expected = data.userDescription?.expected || 'Keine Angabe';
+    const pm = data.pageMetadata || {};
+
+    return `<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bug Report — ${escapeHtml(reportTime)}</title>
+<style>
+:root{--bg-primary:#0f1117;--bg-secondary:#1a1d27;--bg-card:#222636;--bg-card-hover:#2a2f42;--border:#2d3348;--text-primary:#e8eaf0;--text-secondary:#9096a8;--text-muted:#636882;--accent:#6366f1;--accent-glow:rgba(99,102,241,0.15);--danger:#ef4444;--success:#22c55e;--warning:#f59e0b;--radius:12px;--radius-sm:8px;--font-mono:'SF Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',Roboto,sans-serif}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.6;-webkit-font-smoothing:antialiased}
+.container{max-width:960px;margin:0 auto;padding:32px 24px 64px}
+.report-header{display:flex;align-items:center;gap:12px;margin-bottom:8px}
+.report-logo{font-size:32px}
+.report-title{font-size:24px;font-weight:800;letter-spacing:-0.03em;flex:1}
+.report-badge{font-size:11px;color:var(--text-muted);background:var(--bg-secondary);padding:4px 10px;border-radius:20px;border:1px solid var(--border);font-weight:500}
+.report-sub{font-size:13px;color:var(--text-muted);margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid var(--border)}
+.section{margin-bottom:24px}
+.section-header{display:flex;align-items:center;gap:8px;cursor:pointer;padding:14px 16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);transition:all .2s;user-select:none}
+.section-header:hover{background:var(--bg-card);border-color:var(--accent)}
+.section-icon{font-size:18px}
+.section-title{font-size:14px;font-weight:700;flex:1}
+.section-count{font-size:11px;background:var(--accent-glow);color:var(--accent);padding:2px 8px;border-radius:12px;font-weight:600}
+.section-chevron{font-size:12px;color:var(--text-muted);transition:transform .2s}
+.section-body{margin-top:8px;padding:16px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);display:none;animation:slideDown .2s}
+.section.open .section-body{display:block}
+.section.open .section-chevron{transform:rotate(90deg)}
+@keyframes slideDown{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-bottom:24px}
+.meta-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px}
+.meta-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted);margin-bottom:4px;font-weight:600}
+.meta-value{font-size:13px;font-weight:600;word-break:break-all}
+.meta-value.mono{font-family:var(--font-mono);font-size:12px;font-weight:500}
+.user-desc{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:24px}
+@media(max-width:600px){.user-desc{grid-template-columns:1fr}}
+.desc-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.desc-card.actual{border-left:3px solid var(--danger)}
+.desc-card.expected{border-left:3px solid var(--success)}
+.desc-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;margin-bottom:8px}
+.desc-card.actual .desc-label{color:var(--danger)}
+.desc-card.expected .desc-label{color:var(--success)}
+.desc-text{font-size:14px;line-height:1.6;color:var(--text-secondary);white-space:pre-wrap}
+.screenshot-container{margin-bottom:24px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--bg-secondary)}
+.screenshot-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;font-weight:700;color:var(--text-muted);padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+.screenshot-container img{width:100%;display:block}
+.json-block{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px;overflow-x:auto;font-family:var(--font-mono);font-size:11.5px;line-height:1.7;white-space:pre-wrap;word-break:break-word;max-height:500px;overflow-y:auto}
+.json-key{color:#93c5fd}.json-string{color:#86efac}.json-number{color:#fbbf24}.json-boolean{color:#c084fc}.json-null{color:#f87171}
+.limitations-list{list-style:none;padding:0}
+.limitations-list li{font-size:12.5px;color:var(--text-secondary);padding:6px 0;border-bottom:1px solid rgba(45,51,72,.5);display:flex;align-items:flex-start;gap:8px}
+.limitations-list li:last-child{border-bottom:none}
+.limitations-list li::before{content:'⚠️';font-size:12px;flex-shrink:0}
+.summary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px}
+.summary-item{background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;text-align:center}
+.summary-item-label{font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--text-muted);margin-bottom:4px}
+.summary-item-value{font-size:18px;font-weight:700;color:var(--accent)}
+.report-footer{text-align:center;font-size:11px;color:var(--text-muted);margin-top:40px;padding-top:20px;border-top:1px solid var(--border)}
+::-webkit-scrollbar{width:6px;height:6px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}::-webkit-scrollbar-thumb:hover{background:var(--text-muted)}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="report-header">
+<div class="report-logo">🐛</div>
+<div class="report-title">Bug Report</div>
+<div class="report-badge">Schema v${escapeHtml(data.schemaVersion||'2.0.0')}</div>
+<div class="report-badge">Tool v${escapeHtml(toolVersion)}</div>
+</div>
+<div class="report-sub">Erstellt am ${escapeHtml(reportTime)}</div>
+
+<div class="user-desc">
+<div class="desc-card actual"><div class="desc-label">Ist-Zustand (Actual)</div><div class="desc-text">${escapeHtml(actual)}</div></div>
+<div class="desc-card expected"><div class="desc-label">Soll-Zustand (Expected)</div><div class="desc-text">${escapeHtml(expected)}</div></div>
+</div>
+
+${data.screenshotBase64 ? `<div class="screenshot-container"><div class="screenshot-label">📸 Annotated Screenshot (DOM Capture via layout2vector)</div><img src="${data.screenshotBase64}" alt="Annotated screenshot"></div>` : `<div class="screenshot-container"><div class="screenshot-label">📸 Screenshot not available</div></div>`}
+
+<div class="meta-grid">
+<div class="meta-card"><div class="meta-label">URL</div><div class="meta-value mono">${escapeHtml(pm.url||'N/A')}</div></div>
+<div class="meta-card"><div class="meta-label">Browser</div><div class="meta-value">${escapeHtml((pm.browserName||'Unknown')+' '+(pm.browserVersion||''))}</div></div>
+<div class="meta-card"><div class="meta-label">Viewport</div><div class="meta-value">${pm.viewportSize?pm.viewportSize.width+' × '+pm.viewportSize.height:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">Screen Resolution</div><div class="meta-value">${pm.screenResolution?pm.screenResolution.width+' × '+pm.screenResolution.height:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">Scroll Position</div><div class="meta-value">${pm.scrollPosition?'X: '+pm.scrollPosition.x+'  Y: '+pm.scrollPosition.y:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">Zoom Level</div><div class="meta-value">${pm.zoomLevel!=null?pm.zoomLevel:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">User Agent</div><div class="meta-value mono" style="font-size:10px">${escapeHtml(pm.userAgent||'N/A')}</div></div>
+</div>
+
+<div class="section open" id="sectionInteractions"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">👆</span><span class="section-title">User Interactions</span><span class="section-count">${(data.interactions||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.interactions||[])}</div></div></div>
+
+<div class="section" id="sectionConsole"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">📋</span><span class="section-title">Console Logs</span><span class="section-count">${(data.consoleLogs||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.consoleLogs||[])}</div></div></div>
+
+<div class="section" id="sectionErrors"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">⚠️</span><span class="section-title">JavaScript Errors</span><span class="section-count">${(data.jsErrors||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.jsErrors||[])}</div></div></div>
+
+<div class="section" id="sectionNetwork"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">🌐</span><span class="section-title">Network Requests</span><span class="section-count">${(data.networkRequests||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.networkRequests||[])}</div></div></div>
+
+<div class="section" id="sectionSanitization"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">🔒</span><span class="section-title">Sanitization Summary</span><span class="section-count">${data.sanitizationSummary?.totalRedactions||0} redactions</span><span class="section-chevron">▶</span></div><div class="section-body">
+${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSummary.redactionsByType).length > 0 ? `<div class="summary-grid">${Object.entries(data.sanitizationSummary.redactionsByType).map(([t,c])=>`<div class="summary-item"><div class="summary-item-label">${escapeHtml(t)}</div><div class="summary-item-value">${c}</div></div>`).join('')}</div>` : '<p style="color:var(--text-muted);font-size:13px">No redactions were necessary.</p>'}
+</div></div>
+
+<div class="section" id="sectionLimitations"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">ℹ️</span><span class="section-title">Capture Limitations</span><span class="section-chevron">▶</span></div><div class="section-body"><ul class="limitations-list">${(data.captureLimitations||[]).map(l=>`<li>${escapeHtml(l)}</li>`).join('')}</ul></div></div>
+
+<script type="application/json" id="bug-report-json">${escapeHtml(JSON.stringify(data,null,2))}</script>
+
+<div class="report-footer">Bug Report Dashboard — Schema v${escapeHtml(data.schemaVersion||'2.0.0')} — Tool v${escapeHtml(toolVersion)}<br>Generated ${escapeHtml(reportTime)}</div>
+</div>
+</body>
+</html>`;
+  }
+
+  // ═══════════════════════════════════════════════════════════════
   //  REPORT GENERATION
   // ═══════════════════════════════════════════════════════════════
 
@@ -293,12 +595,13 @@
     'Network capture is limited to fetch() and XMLHttpRequest (no image/script loads).',
     'Form field values and typed characters are not captured.',
     'Console logs and errors before script load are not included.',
+    'Visual capture renders a simplified DOM geometry, not a pixel-perfect screenshot.',
   ];
 
-  function generateReport() {
+  function generateReport(userDescription, screenshotBase64) {
     const { browserName, browserVersion } = parseBrowser();
     const raw = {
-      schemaVersion: '1.0.0', reportTimestamp: new Date().toISOString(), widgetVersion: VERSION,
+      schemaVersion: '2.0.0', reportTimestamp: new Date().toISOString(), widgetVersion: VERSION,
       pageMetadata: {
         url: location.href, userAgent: navigator.userAgent,
         viewportSize: { width: innerWidth, height: innerHeight },
@@ -306,22 +609,34 @@
         scrollPosition: { x: Math.round(scrollX), y: Math.round(scrollY) },
         zoomLevel: Math.round(devicePixelRatio * 100) / 100, browserName, browserVersion,
       },
+      userDescription,
+      screenshotBase64: '__SCREENSHOT_PLACEHOLDER__',
       interactions: interactions.map(({ _ts, ...r }) => r),
       consoleLogs: [...consoleLogs], jsErrors: [...jsErrors], networkRequests: [...networkRequests],
     };
     const rd = {};
     const report = sanitizeDeep(raw, rd);
+    report.screenshotBase64 = screenshotBase64;
     report.sanitizationSummary = { totalRedactions: Object.values(rd).reduce((a,b)=>a+b,0), redactionsByType: rd };
     report.captureLimitations = LIMITATIONS;
     return report;
   }
 
-  function downloadReport() {
-    const report = generateReport();
-    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+  function downloadReport(userDescription) {
+    // Capture visual state
+    let screenshotBase64 = null;
+    try {
+      screenshotBase64 = captureVisualState();
+    } catch (e) {
+      // Visual capture failed; continue without screenshot
+    }
+
+    const report = generateReport(userDescription, screenshotBase64);
+    const htmlStr = buildHtmlReport(report);
+    const blob = new Blob([htmlStr], { type: 'text/html' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = 'bug_report_' + Date.now() + '.json';
+    a.download = 'bug_report_' + Date.now() + '.html';
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -433,8 +748,27 @@
     overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
 
     document.getElementById('br-dl').addEventListener('click', () => {
-      downloadReport();
       overlay.classList.remove('open');
+
+      // Prompt for Ist/Soll descriptions
+      const actual = window.prompt(
+        'Ist-Zustand: Was passiert aktuell? Bitte beschreiben Sie das beobachtete Verhalten.',
+        ''
+      );
+      if (actual === null) return; // User cancelled
+
+      const expected = window.prompt(
+        'Soll-Zustand: Was hätten Sie erwartet? Bitte beschreiben Sie das gewünschte Verhalten.',
+        ''
+      );
+      if (expected === null) return; // User cancelled
+
+      const userDescription = {
+        actual: actual || 'Keine Angabe',
+        expected: expected || 'Keine Angabe',
+      };
+
+      downloadReport(userDescription);
     });
   }
 

@@ -1,16 +1,18 @@
 /**
- * background.js — Service Worker for Bug Report Extension
+ * background.js — Service Worker for Bug Report Extension (v2.0.0)
  *
  * Responsibilities:
  *  - Capture network request metadata via webRequest API (per-tab, max 200)
- *  - Orchestrate report assembly from content script data + network data
+ *  - Orchestrate Ist/Soll user prompts via content script
+ *  - Assemble report from content script data + network data
  *  - Apply final sanitization via sanitizer.js
- *  - Trigger JSON file download
+ *  - Generate HTML dashboard via report-template.js
+ *  - Trigger HTML file download
  */
 
-importScripts('sanitizer.js');
+importScripts('sanitizer.js', 'report-template.js');
 
-const EXTENSION_VERSION = '1.0.0';
+const EXTENSION_VERSION = '2.0.0';
 
 // ═══════════════════════════════════════════════════════════════════
 //  NETWORK REQUEST BUFFER (per-tab)
@@ -125,10 +127,27 @@ const CAPTURE_LIMITATIONS = [
   'Console logs, JS errors, and network requests that occurred before extension initialization are not included.',
   'Network request/response bodies and headers are not captured.',
   'Form field values and typed characters are not captured.',
+  'Visual capture renders a simplified DOM geometry, not a pixel-perfect screenshot.',
 ];
 
-async function assembleReport(tabId) {
-  // Get data from content script
+/**
+ * Prompt the user for Ist/Soll descriptions via the content script.
+ * Returns { cancelled, actual, expected } or throws on error.
+ */
+async function promptIstSoll(tabId) {
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabId, { type: 'PROMPT_IST_SOLL' }, (response) => {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+      } else {
+        resolve(response);
+      }
+    });
+  });
+}
+
+async function assembleReport(tabId, userDescription) {
+  // Get data from content script (including screenshot)
   const contentData = await chrome.tabs.sendMessage(tabId, {
     type: 'GET_BUG_REPORT_DATA',
   });
@@ -139,10 +158,12 @@ async function assembleReport(tabId) {
 
   // Build the raw report
   const rawReport = {
-    schemaVersion: '1.0.0',
+    schemaVersion: '2.0.0',
     reportTimestamp: new Date().toISOString(),
     extensionVersion: EXTENSION_VERSION,
     pageMetadata: contentData.pageMetadata,
+    userDescription: userDescription,
+    screenshotBase64: contentData.screenshotBase64,
     interactions: contentData.interactions,
     consoleLogs: contentData.consoleLogs,
     jsErrors: contentData.jsErrors,
@@ -150,8 +171,15 @@ async function assembleReport(tabId) {
   };
 
   // Apply deep sanitization (Layer 4)
+  // Note: screenshotBase64 is a data URL, not user text — exclude from text sanitization
+  const screenshotBackup = rawReport.screenshotBase64;
+  rawReport.screenshotBase64 = '__SCREENSHOT_PLACEHOLDER__';
+
   const redactions = {};
   const sanitizedReport = Sanitizer.sanitizeDeep(rawReport, redactions);
+
+  // Restore screenshot
+  sanitizedReport.screenshotBase64 = screenshotBackup;
 
   // Add sanitization summary
   sanitizedReport.sanitizationSummary = Sanitizer.buildSummary(redactions);
@@ -160,10 +188,14 @@ async function assembleReport(tabId) {
   sanitizedReport.captureLimitations = CAPTURE_LIMITATIONS;
 
   // Final validation (Layer 5)
-  const validation = Sanitizer.validateFinalReport(sanitizedReport);
+  // Temporarily remove screenshot for validation (it's binary data, not user text)
+  const reportForValidation = { ...sanitizedReport, screenshotBase64: undefined };
+  const validation = Sanitizer.validateFinalReport(reportForValidation);
   if (!validation.passed) {
     // If validation finds issues, do another sanitization pass
-    const reSanitized = Sanitizer.sanitizeDeep(sanitizedReport, redactions);
+    const reRaw = { ...sanitizedReport, screenshotBase64: '__SCREENSHOT_PLACEHOLDER__' };
+    const reSanitized = Sanitizer.sanitizeDeep(reRaw, redactions);
+    reSanitized.screenshotBase64 = screenshotBackup;
     reSanitized.sanitizationSummary = Sanitizer.buildSummary(redactions);
     reSanitized.sanitizationSummary.validationIssues = validation.issues;
     reSanitized.captureLimitations = CAPTURE_LIMITATIONS;
@@ -174,16 +206,32 @@ async function assembleReport(tabId) {
 }
 
 async function downloadReport(tabId) {
-  const report = await assembleReport(tabId);
-  const jsonStr = JSON.stringify(report, null, 2);
-  const blob = new Blob([jsonStr], { type: 'application/json' });
+  // Step 1: Prompt user for Ist/Soll descriptions
+  const userInput = await promptIstSoll(tabId);
+
+  // Check if user cancelled the prompt flow
+  if (userInput.cancelled) {
+    return { cancelled: true };
+  }
+
+  const userDescription = {
+    actual: userInput.actual || 'Keine Angabe',
+    expected: userInput.expected || 'Keine Angabe',
+  };
+
+  // Step 2: Assemble the report with sanitization
+  const report = await assembleReport(tabId, userDescription);
+
+  // Step 3: Build HTML dashboard
+  const htmlStr = ReportTemplate.build(report);
+  const blob = new Blob([htmlStr], { type: 'text/html' });
 
   // Convert blob to data URL for download
   const reader = new FileReader();
   return new Promise((resolve, reject) => {
     reader.onloadend = () => {
       const dataUrl = reader.result;
-      const filename = `bug_report_${Date.now()}.json`;
+      const filename = `bug_report_${Date.now()}.html`;
 
       chrome.downloads.download(
         {
@@ -237,7 +285,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const tabId = message.tabId;
 
     downloadReport(tabId)
-      .then((result) => sendResponse({ success: true, ...result }))
+      .then((result) => {
+        if (result.cancelled) {
+          sendResponse({ success: false, cancelled: true });
+        } else {
+          sendResponse({ success: true, ...result });
+        }
+      })
       .catch((error) => sendResponse({ success: false, error: String(error) }));
 
     return true; // async response

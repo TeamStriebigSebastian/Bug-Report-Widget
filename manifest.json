@@ -1,10 +1,11 @@
 {
     "manifest_version": 3,
     "name": "Local Bug Logger",
-    "version": "1.0.0",
-    "description": "Fängt die letzten 50 Aktionen ab und generiert einen DSGVO-sicheren Report.",
+    "version": "2.0.0",
+    "description": "Fängt die letzten 50 Aktionen ab und generiert einen DSGVO-sicheren HTML-Bug-Report mit annotiertem Screenshot.",
     "permissions": [
         "activeTab",
+        "scripting",
         "webRequest",
         "downloads"
     ],
