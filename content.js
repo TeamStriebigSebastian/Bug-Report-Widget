@@ -591,8 +591,10 @@ function captureVisualState() {
   let clickIndex = 1;
 
   for (const click of clicks) {
-    const cx = click.viewportCoordinates.x;
-    const cy = click.viewportCoordinates.y;
+    const pageX = click.viewportCoordinates.x + (click.scrollPosition ? click.scrollPosition.x : 0);
+    const pageY = click.viewportCoordinates.y + (click.scrollPosition ? click.scrollPosition.y : 0);
+    const cx = pageX - window.scrollX;
+    const cy = pageY - window.scrollY;
 
     // Draw outer red circle with glow
     ctx.beginPath();

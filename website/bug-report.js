@@ -427,7 +427,10 @@
     const clicks = interactions.filter(e => e.eventType === 'click' && e.viewportCoordinates);
     let idx = 1;
     for (const click of clicks) {
-      const cx = click.viewportCoordinates.x, cy = click.viewportCoordinates.y;
+      const pageX = click.viewportCoordinates.x + (click.scrollPosition ? click.scrollPosition.x : 0);
+      const pageY = click.viewportCoordinates.y + (click.scrollPosition ? click.scrollPosition.y : 0);
+      const cx = pageX - window.scrollX;
+      const cy = pageY - window.scrollY;
 
       // Outer glow
       ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2);
