@@ -752,13 +752,13 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
 
       // Prompt for Ist/Soll descriptions
       const actual = window.prompt(
-        'Ist-Zustand: Was passiert aktuell? Bitte beschreiben Sie das beobachtete Verhalten.',
+        'Was ist passiert?\n\nBeschreibe kurz das Problem, das du beobachtet hast.\n\nBeispiel: \"Beim Klick auf Speichern passiert nichts\" oder \"Die Seite zeigt eine Fehlermeldung\"',
         ''
       );
       if (actual === null) return; // User cancelled
 
       const expected = window.prompt(
-        'Soll-Zustand: Was hätten Sie erwartet? Bitte beschreiben Sie das gewünschte Verhalten.',
+        'Was hättest du erwartet?\n\nBeschreibe kurz, was stattdessen hätte passieren sollen.\n\nBeispiel: \"Die Daten sollten gespeichert werden\" oder \"Die Seite sollte normal laden\"',
         ''
       );
       if (expected === null) return; // User cancelled

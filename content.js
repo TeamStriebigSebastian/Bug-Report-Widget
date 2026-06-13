@@ -705,7 +705,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === 'PROMPT_IST_SOLL') {
     // Prompt user for Ist/Soll descriptions using native browser prompts
     const actual = window.prompt(
-      'Ist-Zustand: Was passiert aktuell? Bitte beschreiben Sie das beobachtete Verhalten.',
+      'Was ist passiert?\n\nBeschreibe kurz das Problem, das du beobachtet hast.\n\nBeispiel: \"Beim Klick auf Speichern passiert nichts\" oder \"Die Seite zeigt eine Fehlermeldung\"',
       ''
     );
 
@@ -716,7 +716,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
 
     const expected = window.prompt(
-      'Soll-Zustand: Was hätten Sie erwartet? Bitte beschreiben Sie das gewünschte Verhalten.',
+      'Was hättest du erwartet?\n\nBeschreibe kurz, was stattdessen hätte passieren sollen.\n\nBeispiel: \"Die Daten sollten gespeichert werden\" oder \"Die Seite sollte normal laden\"',
       ''
     );
 
