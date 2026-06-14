@@ -632,10 +632,21 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
         </div>
       `;
 
+      const scrollbarStyle = document.createElement('style');
+      scrollbarStyle.textContent = `
+        .br-modal-main { scrollbar-width: auto; scrollbar-color: #6366f1 #1a1d27; }
+        .br-modal-main::-webkit-scrollbar { width: 10px; }
+        .br-modal-main::-webkit-scrollbar-track { background: #1a1d27; border-radius: 5px; }
+        .br-modal-main::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 5px; border: 2px solid #1a1d27; }
+        .br-modal-main::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+      `;
+      overlay.appendChild(scrollbarStyle);
+
       const main = document.createElement('div');
+      main.className = 'br-modal-main';
       main.style.flex = '1';
       main.style.display = 'flex';
-      main.style.overflow = 'auto';
+      main.style.overflowY = 'scroll';
       main.style.flexWrap = 'wrap';
 
       const canvasContainer = document.createElement('div');
