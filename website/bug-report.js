@@ -662,13 +662,16 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
           const rect = canvas.getBoundingClientRect();
           const scaleX = canvas.width / rect.width;
           const scaleY = canvas.height / rect.height;
+          const clientX = e.touches && e.touches.length > 0 ? e.touches[0].clientX : e.clientX;
+          const clientY = e.touches && e.touches.length > 0 ? e.touches[0].clientY : e.clientY;
           return {
-            x: (e.clientX - rect.left) * scaleX,
-            y: (e.clientY - rect.top) * scaleY
+            x: (clientX - rect.left) * scaleX,
+            y: (clientY - rect.top) * scaleY
           };
         }
 
-        canvas.addEventListener('mousedown', (e) => {
+        const startDrawing = (e) => {
+          if (e.type.startsWith('touch')) e.preventDefault();
           isDrawing = true;
           const pos = getPos(e);
           ctx.beginPath();
@@ -677,18 +680,31 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
           ctx.lineWidth = Math.max(4, img.width / 250);
           ctx.lineCap = 'round';
           ctx.lineJoin = 'round';
-        });
+        };
 
-        canvas.addEventListener('mousemove', (e) => {
+        const draw = (e) => {
+          if (e.type.startsWith('touch')) e.preventDefault();
           if (!isDrawing) return;
           const pos = getPos(e);
           ctx.lineTo(pos.x, pos.y);
           ctx.stroke();
-        });
+        };
 
-        const stopDrawing = () => { isDrawing = false; };
+        const stopDrawing = (e) => {
+          if (e && e.type && e.type.startsWith('touch') && e.cancelable) e.preventDefault();
+          isDrawing = false;
+        };
+
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('touchstart', startDrawing, { passive: false });
+
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('touchmove', draw, { passive: false });
+
         canvas.addEventListener('mouseup', stopDrawing);
         canvas.addEventListener('mouseleave', stopDrawing);
+        canvas.addEventListener('touchend', stopDrawing, { passive: false });
+        canvas.addEventListener('touchcancel', stopDrawing, { passive: false });
       };
       img.src = dataUrl;
 
