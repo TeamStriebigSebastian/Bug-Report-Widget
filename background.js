@@ -130,27 +130,15 @@ const CAPTURE_LIMITATIONS = [
   'Visual capture renders a simplified DOM geometry, not a pixel-perfect screenshot.',
 ];
 
-/**
- * Prompt the user for Ist/Soll descriptions via the content script.
- * Returns { cancelled, actual, expected } or throws on error.
- */
-async function promptIstSoll(tabId) {
-  return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, { type: 'PROMPT_IST_SOLL' }, (response) => {
-      if (chrome.runtime.lastError) {
-        reject(new Error(chrome.runtime.lastError.message));
-      } else {
-        resolve(response);
-      }
-    });
-  });
-}
-
-async function assembleReport(tabId, userDescription) {
-  // Get data from content script (including screenshot)
+async function assembleReport(tabId) {
+  // Get data from content script (including screenshot and user description)
   const contentData = await chrome.tabs.sendMessage(tabId, {
     type: 'GET_BUG_REPORT_DATA',
   });
+
+  if (contentData.cancelled) {
+    return { cancelled: true };
+  }
 
   // Get network data for this tab
   const tabBuffer = networkBuffers.get(tabId);
@@ -162,7 +150,7 @@ async function assembleReport(tabId, userDescription) {
     reportTimestamp: new Date().toISOString(),
     extensionVersion: EXTENSION_VERSION,
     pageMetadata: contentData.pageMetadata,
-    userDescription: userDescription,
+    userDescription: contentData.userDescription,
     screenshotBase64: contentData.screenshotBase64,
     interactions: contentData.interactions,
     consoleLogs: contentData.consoleLogs,
@@ -206,21 +194,13 @@ async function assembleReport(tabId, userDescription) {
 }
 
 async function downloadReport(tabId) {
-  // Step 1: Prompt user for Ist/Soll descriptions
-  const userInput = await promptIstSoll(tabId);
+  // Step 1 & 2: Get data from content script and assemble the report with sanitization
+  const report = await assembleReport(tabId);
 
-  // Check if user cancelled the prompt flow
-  if (userInput.cancelled) {
+  // Check if user cancelled the unified form
+  if (report.cancelled) {
     return { cancelled: true };
   }
-
-  const userDescription = {
-    actual: userInput.actual || 'Keine Angabe',
-    expected: userInput.expected || 'Keine Angabe',
-  };
-
-  // Step 2: Assemble the report with sanitization
-  const report = await assembleReport(tabId, userDescription);
 
   // Step 3: Build HTML dashboard
   const htmlStr = ReportTemplate.build(report);

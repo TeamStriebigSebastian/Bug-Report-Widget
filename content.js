@@ -670,7 +670,7 @@ function getDirectText(el) {
   return text.trim();
 }
 
-function showAnnotationEditor(dataUrl) {
+function showReportForm(dataUrl) {
   return new Promise((resolve) => {
     if (!dataUrl) {
       resolve(null);
@@ -696,22 +696,28 @@ function showAnnotationEditor(dataUrl) {
     header.style.borderBottom = '1px solid #2d3348';
     header.innerHTML = `
       <div style="font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
-        🖍 Screenshot markieren
-        <span style="font-size: 13px; font-weight: 400; color: #9096a8;">(Markiere relevante Bereiche mit der Maus)</span>
+        🐛 Bug Report erstellen
       </div>
       <div style="display: flex; gap: 12px;">
-        <button id="br-editor-skip" style="padding: 10px 16px; background: #222636; border: 1px solid #2d3348; color: #e8eaf0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">Ohne Markierung fortfahren</button>
-        <button id="br-editor-save" style="padding: 10px 20px; background: #6366f1; border: none; color: #ffffff; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(99,102,241,0.3); transition: all 0.2s;">Fertig & Report erstellen</button>
+        <button id="br-editor-cancel" style="padding: 10px 16px; background: #222636; border: 1px solid #2d3348; color: #e8eaf0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">Abbrechen</button>
+        <button id="br-editor-save" disabled style="padding: 10px 20px; background: #6366f1; border: none; color: #ffffff; border-radius: 8px; cursor: not-allowed; opacity: 0.5; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(99,102,241,0.3); transition: all 0.2s;">Report herunterladen</button>
       </div>
     `;
 
+    const main = document.createElement('div');
+    main.style.flex = '1';
+    main.style.display = 'flex';
+    main.style.overflow = 'hidden';
+    main.style.flexWrap = 'wrap';
+
     const canvasContainer = document.createElement('div');
-    canvasContainer.style.flex = '1';
+    canvasContainer.style.flex = '2 1 600px';
     canvasContainer.style.overflow = 'auto';
     canvasContainer.style.display = 'flex';
     canvasContainer.style.alignItems = 'flex-start';
     canvasContainer.style.justifyContent = 'center';
-    canvasContainer.style.padding = '40px';
+    canvasContainer.style.padding = '24px';
+    canvasContainer.style.background = '#0f1117';
 
     const canvas = document.createElement('canvas');
     canvas.style.boxShadow = '0 10px 40px rgba(0,0,0,0.5)';
@@ -720,6 +726,33 @@ function showAnnotationEditor(dataUrl) {
     canvas.style.height = 'auto';
     canvas.style.background = '#ffffff';
     canvas.style.borderRadius = '4px';
+
+    const formContainer = document.createElement('div');
+    formContainer.style.flex = '1 1 350px';
+    formContainer.style.background = '#1a1d27';
+    formContainer.style.borderLeft = '1px solid #2d3348';
+    formContainer.style.padding = '24px';
+    formContainer.style.display = 'flex';
+    formContainer.style.flexDirection = 'column';
+    formContainer.style.gap = '20px';
+    formContainer.style.overflowY = 'auto';
+
+    formContainer.innerHTML = `
+      <div>
+        <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">Was ist passiert? <span style="color:#ef4444">*</span></h3>
+        <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">Beschreibe kurz das Problem. (z.B. "Beim Klick auf Speichern passiert nichts")</p>
+        <textarea id="br-input-actual" placeholder="Ist-Zustand..." style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+      </div>
+      <div>
+        <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">Was hättest du erwartet? <span style="color:#ef4444">*</span></h3>
+        <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">Beschreibe das gewünschte Verhalten. (z.B. "Die Daten sollten gespeichert werden")</p>
+        <textarea id="br-input-expected" placeholder="Soll-Zustand..." style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+      </div>
+      <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 16px;">
+        <h3 style="margin: 0 0 8px 0; font-size: 13px; color: #818cf8; display: flex; align-items: center; gap: 6px;">🖍 Screenshot markieren</h3>
+        <p style="margin: 0; font-size: 12px; color: #9096a8; line-height: 1.5;">Du kannst mit der Maus auf dem Screenshot zeichnen, um das Problem genauer zu zeigen.</p>
+      </div>
+    `;
 
     const img = new Image();
     img.onload = () => {
@@ -781,19 +814,44 @@ function showAnnotationEditor(dataUrl) {
     img.src = dataUrl;
 
     canvasContainer.appendChild(canvas);
+    main.appendChild(canvasContainer);
+    main.appendChild(formContainer);
     overlay.appendChild(header);
-    overlay.appendChild(canvasContainer);
+    overlay.appendChild(main);
     document.body.appendChild(overlay);
 
-    document.getElementById('br-editor-skip').addEventListener('click', () => {
+    const actualInput = document.getElementById('br-input-actual');
+    const expectedInput = document.getElementById('br-input-expected');
+    const saveBtn = document.getElementById('br-editor-save');
+
+    const validateInputs = () => {
+      if (actualInput.value.trim().length > 0 && expectedInput.value.trim().length > 0) {
+        saveBtn.disabled = false;
+        saveBtn.style.cursor = 'pointer';
+        saveBtn.style.opacity = '1';
+      } else {
+        saveBtn.disabled = true;
+        saveBtn.style.cursor = 'not-allowed';
+        saveBtn.style.opacity = '0.5';
+      }
+    };
+
+    actualInput.addEventListener('input', validateInputs);
+    expectedInput.addEventListener('input', validateInputs);
+
+    document.getElementById('br-editor-cancel').addEventListener('click', () => {
       document.body.removeChild(overlay);
-      resolve(dataUrl);
+      resolve(null);
     });
 
-    document.getElementById('br-editor-save').addEventListener('click', () => {
+    saveBtn.addEventListener('click', () => {
       const newDataUrl = canvas.toDataURL('image/png');
       document.body.removeChild(overlay);
-      resolve(newDataUrl);
+      resolve({
+        screenshotBase64: newDataUrl,
+        actual: actualInput.value.trim(),
+        expected: expectedInput.value.trim()
+      });
     });
   });
 }
@@ -812,14 +870,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       console.error('Visual capture failed', e);
     }
 
-    // 2. Async flow: show editor, wait for user, then respond
-    showAnnotationEditor(rawScreenshot).then((annotatedScreenshot) => {
+    // 2. Async flow: show unified form, wait for user, then respond
+    showReportForm(rawScreenshot).then((formData) => {
+      if (!formData) {
+        sendResponse({ cancelled: true });
+        return;
+      }
       sendResponse({
         pageMetadata: collectPageMetadata(),
         interactions: InteractionBuffer.getAll(),
         consoleLogs: ConsoleBuffer.getAll(),
         jsErrors: ErrorBuffer.getAll(),
-        screenshotBase64: annotatedScreenshot,
+        screenshotBase64: formData.screenshotBase64,
+        userDescription: {
+          actual: formData.actual,
+          expected: formData.expected
+        }
       });
     });
     
@@ -836,35 +902,4 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'PROMPT_IST_SOLL') {
-    // Prompt user for Ist/Soll descriptions using native browser prompts
-    const actual = window.prompt(
-      'Was ist passiert?\n\nBeschreibe kurz das Problem, das du beobachtet hast.\n\nBeispiel: \"Beim Klick auf Speichern passiert nichts\" oder \"Die Seite zeigt eine Fehlermeldung\"',
-      ''
-    );
-
-    // If user cancels the first prompt, abort the entire flow
-    if (actual === null) {
-      sendResponse({ cancelled: true });
-      return true;
-    }
-
-    const expected = window.prompt(
-      'Was hättest du erwartet?\n\nBeschreibe kurz, was stattdessen hätte passieren sollen.\n\nBeispiel: \"Die Daten sollten gespeichert werden\" oder \"Die Seite sollte normal laden\"',
-      ''
-    );
-
-    // If user cancels the second prompt, abort the entire flow
-    if (expected === null) {
-      sendResponse({ cancelled: true });
-      return true;
-    }
-
-    sendResponse({
-      cancelled: false,
-      actual: actual || 'Keine Angabe',
-      expected: expected || 'Keine Angabe',
-    });
-    return true;
-  }
 });

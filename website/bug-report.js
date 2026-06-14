@@ -598,7 +598,7 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
     return report;
   }
 
-  function showAnnotationEditor(dataUrl) {
+  function showReportForm(dataUrl) {
     return new Promise((resolve) => {
       if (!dataUrl) {
         resolve(null);
@@ -624,22 +624,28 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
       header.style.borderBottom = '1px solid #2d3348';
       header.innerHTML = `
         <div style="font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
-          🖍 Screenshot markieren
-          <span style="font-size: 13px; font-weight: 400; color: #9096a8;">(Markiere relevante Bereiche mit der Maus)</span>
+          🐛 Bug Report erstellen
         </div>
         <div style="display: flex; gap: 12px;">
-          <button id="br-editor-skip-w" style="padding: 10px 16px; background: #222636; border: 1px solid #2d3348; color: #e8eaf0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">Ohne Markierung fortfahren</button>
-          <button id="br-editor-save-w" style="padding: 10px 20px; background: #6366f1; border: none; color: #ffffff; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(99,102,241,0.3); transition: all 0.2s;">Fertig & Report erstellen</button>
+          <button id="br-editor-cancel" style="padding: 10px 16px; background: #222636; border: 1px solid #2d3348; color: #e8eaf0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">Abbrechen</button>
+          <button id="br-editor-save" disabled style="padding: 10px 20px; background: #6366f1; border: none; color: #ffffff; border-radius: 8px; cursor: not-allowed; opacity: 0.5; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(99,102,241,0.3); transition: all 0.2s;">Report herunterladen</button>
         </div>
       `;
 
+      const main = document.createElement('div');
+      main.style.flex = '1';
+      main.style.display = 'flex';
+      main.style.overflow = 'hidden';
+      main.style.flexWrap = 'wrap';
+
       const canvasContainer = document.createElement('div');
-      canvasContainer.style.flex = '1';
+      canvasContainer.style.flex = '2 1 600px';
       canvasContainer.style.overflow = 'auto';
       canvasContainer.style.display = 'flex';
       canvasContainer.style.alignItems = 'flex-start';
       canvasContainer.style.justifyContent = 'center';
-      canvasContainer.style.padding = '40px';
+      canvasContainer.style.padding = '24px';
+      canvasContainer.style.background = '#0f1117';
 
       const canvas = document.createElement('canvas');
       canvas.style.boxShadow = '0 10px 40px rgba(0,0,0,0.5)';
@@ -648,6 +654,33 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
       canvas.style.height = 'auto';
       canvas.style.background = '#ffffff';
       canvas.style.borderRadius = '4px';
+
+      const formContainer = document.createElement('div');
+      formContainer.style.flex = '1 1 350px';
+      formContainer.style.background = '#1a1d27';
+      formContainer.style.borderLeft = '1px solid #2d3348';
+      formContainer.style.padding = '24px';
+      formContainer.style.display = 'flex';
+      formContainer.style.flexDirection = 'column';
+      formContainer.style.gap = '20px';
+      formContainer.style.overflowY = 'auto';
+
+      formContainer.innerHTML = `
+        <div>
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">Was ist passiert? <span style="color:#ef4444">*</span></h3>
+          <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">Beschreibe kurz das Problem. (z.B. "Beim Klick auf Speichern passiert nichts")</p>
+          <textarea id="br-input-actual" placeholder="Ist-Zustand..." style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+        </div>
+        <div>
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">Was hättest du erwartet? <span style="color:#ef4444">*</span></h3>
+          <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">Beschreibe das gewünschte Verhalten. (z.B. "Die Daten sollten gespeichert werden")</p>
+          <textarea id="br-input-expected" placeholder="Soll-Zustand..." style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+        </div>
+        <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 16px;">
+          <h3 style="margin: 0 0 8px 0; font-size: 13px; color: #818cf8; display: flex; align-items: center; gap: 6px;">🖍 Screenshot markieren</h3>
+          <p style="margin: 0; font-size: 12px; color: #9096a8; line-height: 1.5;">Du kannst mit der Maus auf dem Screenshot zeichnen, um das Problem genauer zu zeigen.</p>
+        </div>
+      `;
 
       const img = new Image();
       img.onload = () => {
@@ -709,24 +742,49 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
       img.src = dataUrl;
 
       canvasContainer.appendChild(canvas);
+      main.appendChild(canvasContainer);
+      main.appendChild(formContainer);
       overlay.appendChild(header);
-      overlay.appendChild(canvasContainer);
+      overlay.appendChild(main);
       document.body.appendChild(overlay);
 
-      document.getElementById('br-editor-skip-w').addEventListener('click', () => {
+      const actualInput = document.getElementById('br-input-actual');
+      const expectedInput = document.getElementById('br-input-expected');
+      const saveBtn = document.getElementById('br-editor-save');
+
+      const validateInputs = () => {
+        if (actualInput.value.trim().length > 0 && expectedInput.value.trim().length > 0) {
+          saveBtn.disabled = false;
+          saveBtn.style.cursor = 'pointer';
+          saveBtn.style.opacity = '1';
+        } else {
+          saveBtn.disabled = true;
+          saveBtn.style.cursor = 'not-allowed';
+          saveBtn.style.opacity = '0.5';
+        }
+      };
+
+      actualInput.addEventListener('input', validateInputs);
+      expectedInput.addEventListener('input', validateInputs);
+
+      document.getElementById('br-editor-cancel').addEventListener('click', () => {
         document.body.removeChild(overlay);
-        resolve(dataUrl);
+        resolve(null);
       });
 
-      document.getElementById('br-editor-save-w').addEventListener('click', () => {
+      saveBtn.addEventListener('click', () => {
         const newDataUrl = canvas.toDataURL('image/png');
         document.body.removeChild(overlay);
-        resolve(newDataUrl);
+        resolve({
+          screenshotBase64: newDataUrl,
+          actual: actualInput.value.trim(),
+          expected: expectedInput.value.trim()
+        });
       });
     });
   }
 
-  function downloadReport(userDescription) {
+  function downloadReport() {
     // 1. Capture visual state synchronously
     let rawScreenshot = null;
     try {
@@ -735,9 +793,16 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
       console.error('Visual capture failed', e);
     }
 
-    // 2. Async flow: show editor, wait for user, then generate HTML
-    showAnnotationEditor(rawScreenshot).then((annotatedScreenshot) => {
-      const report = generateReport(userDescription, annotatedScreenshot);
+    // 2. Async flow: show unified form, wait for user, then generate HTML
+    showReportForm(rawScreenshot).then((formData) => {
+      if (!formData) return; // User cancelled
+
+      const userDescription = {
+        actual: formData.actual,
+        expected: formData.expected
+      };
+
+      const report = generateReport(userDescription, formData.screenshotBase64);
       const htmlStr = buildHtmlReport(report);
       const blob = new Blob([htmlStr], { type: 'text/html' });
       const a = document.createElement('a');
@@ -763,32 +828,6 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
         box-shadow:0 4px 20px rgba(99,102,241,0.4); transition:all .2s ease;
       }
       #br-widget-btn:hover { transform:scale(1.1); box-shadow:0 6px 28px rgba(99,102,241,0.55); }
-      #br-widget-overlay {
-        position:fixed; inset:0; z-index:2147483646; background:rgba(0,0,0,0.5);
-        display:none; align-items:center; justify-content:center;
-        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-      }
-      #br-widget-overlay.open { display:flex; }
-      #br-widget-modal {
-        background:#0f1117; color:#e8eaf0; border-radius:14px; padding:24px;
-        width:380px; max-width:90vw; box-shadow:0 20px 60px rgba(0,0,0,0.6);
-        animation:br-fade-in .2s ease;
-      }
-      @keyframes br-fade-in { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
-      .br-header { display:flex; align-items:center; gap:8px; margin-bottom:16px; padding-bottom:12px; border-bottom:1px solid #2d3348; }
-      .br-header-logo { font-size:22px; }
-      .br-header-title { font-size:16px; font-weight:700; flex:1; }
-      .br-header-ver { font-size:11px; color:#636882; background:#1a1d27; padding:2px 7px; border-radius:20px; border:1px solid #2d3348; }
-      .br-info { font-size:12.5px; color:#9096a8; line-height:1.5; margin-bottom:12px; }
-      .br-url { font-size:11.5px; color:#6366f1; background:#1a1d27; padding:8px 10px; border-radius:6px;
-        border:1px solid #2d3348; margin-bottom:14px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-        font-family:'SF Mono','Fira Code',Consolas,monospace; }
-      .br-stats { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px; }
-      .br-stat { background:#222636; border:1px solid #2d3348; border-radius:10px; padding:10px; text-align:center; transition:all .15s; }
-      .br-stat:hover { background:#2a2f42; border-color:#6366f1; }
-      .br-stat-icon { font-size:16px; margin-bottom:4px; }
-      .br-stat-val { font-size:20px; font-weight:700; letter-spacing:-0.03em; }
-      .br-stat-lbl { font-size:10.5px; color:#636882; text-transform:uppercase; letter-spacing:0.04em; margin-top:2px; }
       .br-privacy { font-size:11px; color:#636882; background:rgba(34,197,94,0.06); border:1px solid rgba(34,197,94,0.15);
         border-radius:6px; padding:8px 10px; margin-bottom:16px; line-height:1.5; }
       .br-actions { display:flex; gap:8px; }
@@ -812,70 +851,8 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
     btn.title = 'Bug Report erstellen';
     document.body.appendChild(btn);
 
-    // Overlay + Modal
-    const overlay = document.createElement('div');
-    overlay.id = 'br-widget-overlay';
-    overlay.innerHTML = `
-      <div id="br-widget-modal">
-        <div class="br-header">
-          <div class="br-header-logo">🐛</div>
-          <div class="br-header-title">Bug Report</div>
-          <div class="br-header-ver">v${VERSION}</div>
-        </div>
-        <p class="br-info">The following information will be included in the bug report:</p>
-        <div class="br-url" id="br-url"></div>
-        <div class="br-stats">
-          <div class="br-stat"><div class="br-stat-icon">👆</div><div class="br-stat-val" id="br-s-int">0</div><div class="br-stat-lbl">Interactions</div></div>
-          <div class="br-stat"><div class="br-stat-icon">📋</div><div class="br-stat-val" id="br-s-con">0</div><div class="br-stat-lbl">Console Logs</div></div>
-          <div class="br-stat"><div class="br-stat-icon">⚠️</div><div class="br-stat-val" id="br-s-err">0</div><div class="br-stat-lbl">JS Errors</div></div>
-          <div class="br-stat"><div class="br-stat-icon">🌐</div><div class="br-stat-val" id="br-s-net">0</div><div class="br-stat-lbl">Network Req.</div></div>
-        </div>
-        <p class="br-privacy">🔒 Sensitive data (emails, tokens, passwords, API keys) will be automatically redacted.</p>
-        <div class="br-actions">
-          <button class="br-btn br-btn-primary" id="br-dl">📥 Download Report</button>
-          <button class="br-btn br-btn-secondary" id="br-cancel">Cancel</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(overlay);
-
-    // Event handlers
     btn.addEventListener('click', () => {
-      const url = location.href;
-      document.getElementById('br-url').textContent = url.length > 55 ? url.substring(0,52) + '…' : url;
-      document.getElementById('br-url').title = url;
-      document.getElementById('br-s-int').textContent = interactions.length;
-      document.getElementById('br-s-con').textContent = consoleLogs.length;
-      document.getElementById('br-s-err').textContent = jsErrors.length;
-      document.getElementById('br-s-net').textContent = networkRequests.length;
-      overlay.classList.add('open');
-    });
-
-    document.getElementById('br-cancel').addEventListener('click', () => overlay.classList.remove('open'));
-    overlay.addEventListener('click', e => { if (e.target === overlay) overlay.classList.remove('open'); });
-
-    document.getElementById('br-dl').addEventListener('click', () => {
-      overlay.classList.remove('open');
-
-      // Prompt for Ist/Soll descriptions
-      const actual = window.prompt(
-        'Was ist passiert?\n\nBeschreibe kurz das Problem, das du beobachtet hast.\n\nBeispiel: \"Beim Klick auf Speichern passiert nichts\" oder \"Die Seite zeigt eine Fehlermeldung\"',
-        ''
-      );
-      if (actual === null) return; // User cancelled
-
-      const expected = window.prompt(
-        'Was hättest du erwartet?\n\nBeschreibe kurz, was stattdessen hätte passieren sollen.\n\nBeispiel: \"Die Daten sollten gespeichert werden\" oder \"Die Seite sollte normal laden\"',
-        ''
-      );
-      if (expected === null) return; // User cancelled
-
-      const userDescription = {
-        actual: actual || 'Keine Angabe',
-        expected: expected || 'Keine Angabe',
-      };
-
-      downloadReport(userDescription);
+      downloadReport();
     });
   }
 
