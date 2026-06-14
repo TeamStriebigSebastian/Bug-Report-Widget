@@ -423,33 +423,6 @@
       } catch {}
     }
 
-    // ── Draw click-path annotations ──────────────────────────
-    const clicks = interactions.filter(e => e.eventType === 'click' && e.viewportCoordinates);
-    let idx = 1;
-    for (const click of clicks) {
-      const pageX = click.viewportCoordinates.x + (click.scrollPosition ? click.scrollPosition.x : 0);
-      const pageY = click.viewportCoordinates.y + (click.scrollPosition ? click.scrollPosition.y : 0);
-      const cx = pageX - window.scrollX;
-      const cy = pageY - window.scrollY;
-
-      // Outer glow
-      ctx.beginPath(); ctx.arc(cx, cy, 16, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(239, 68, 68, 0.25)'; ctx.fill();
-
-      // Red circle
-      ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2);
-      ctx.fillStyle = '#ef4444'; ctx.fill();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.stroke();
-
-      // Number
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 10px sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(idx), cx, cy);
-      ctx.textAlign = 'start';
-      idx++;
-    }
-
     return canvas.toDataURL('image/png');
   }
 
@@ -625,23 +598,138 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
     return report;
   }
 
+  function showAnnotationEditor(dataUrl) {
+    return new Promise((resolve) => {
+      if (!dataUrl) {
+        resolve(null);
+        return;
+      }
+
+      const overlay = document.createElement('div');
+      overlay.style.position = 'fixed';
+      overlay.style.inset = '0';
+      overlay.style.zIndex = '2147483647';
+      overlay.style.background = 'rgba(15, 17, 23, 0.95)';
+      overlay.style.display = 'flex';
+      overlay.style.flexDirection = 'column';
+      overlay.style.fontFamily = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+
+      const header = document.createElement('div');
+      header.style.padding = '16px 24px';
+      header.style.background = '#1a1d27';
+      header.style.color = '#e8eaf0';
+      header.style.display = 'flex';
+      header.style.justifyContent = 'space-between';
+      header.style.alignItems = 'center';
+      header.style.borderBottom = '1px solid #2d3348';
+      header.innerHTML = `
+        <div style="font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+          🖍 Screenshot markieren
+          <span style="font-size: 13px; font-weight: 400; color: #9096a8;">(Markiere relevante Bereiche mit der Maus)</span>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <button id="br-editor-skip-w" style="padding: 10px 16px; background: #222636; border: 1px solid #2d3348; color: #e8eaf0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">Ohne Markierung fortfahren</button>
+          <button id="br-editor-save-w" style="padding: 10px 20px; background: #6366f1; border: none; color: #ffffff; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(99,102,241,0.3); transition: all 0.2s;">Fertig & Report erstellen</button>
+        </div>
+      `;
+
+      const canvasContainer = document.createElement('div');
+      canvasContainer.style.flex = '1';
+      canvasContainer.style.overflow = 'auto';
+      canvasContainer.style.display = 'flex';
+      canvasContainer.style.alignItems = 'flex-start';
+      canvasContainer.style.justifyContent = 'center';
+      canvasContainer.style.padding = '40px';
+
+      const canvas = document.createElement('canvas');
+      canvas.style.boxShadow = '0 10px 40px rgba(0,0,0,0.5)';
+      canvas.style.cursor = 'crosshair';
+      canvas.style.maxWidth = '100%';
+      canvas.style.height = 'auto';
+      canvas.style.background = '#ffffff';
+      canvas.style.borderRadius = '4px';
+
+      const img = new Image();
+      img.onload = () => {
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+
+        let isDrawing = false;
+        
+        function getPos(e) {
+          const rect = canvas.getBoundingClientRect();
+          const scaleX = canvas.width / rect.width;
+          const scaleY = canvas.height / rect.height;
+          return {
+            x: (e.clientX - rect.left) * scaleX,
+            y: (e.clientY - rect.top) * scaleY
+          };
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+          isDrawing = true;
+          const pos = getPos(e);
+          ctx.beginPath();
+          ctx.moveTo(pos.x, pos.y);
+          ctx.strokeStyle = '#ef4444';
+          ctx.lineWidth = Math.max(4, img.width / 250);
+          ctx.lineCap = 'round';
+          ctx.lineJoin = 'round';
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+          if (!isDrawing) return;
+          const pos = getPos(e);
+          ctx.lineTo(pos.x, pos.y);
+          ctx.stroke();
+        });
+
+        const stopDrawing = () => { isDrawing = false; };
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseleave', stopDrawing);
+      };
+      img.src = dataUrl;
+
+      canvasContainer.appendChild(canvas);
+      overlay.appendChild(header);
+      overlay.appendChild(canvasContainer);
+      document.body.appendChild(overlay);
+
+      document.getElementById('br-editor-skip-w').addEventListener('click', () => {
+        document.body.removeChild(overlay);
+        resolve(dataUrl);
+      });
+
+      document.getElementById('br-editor-save-w').addEventListener('click', () => {
+        const newDataUrl = canvas.toDataURL('image/png');
+        document.body.removeChild(overlay);
+        resolve(newDataUrl);
+      });
+    });
+  }
+
   function downloadReport(userDescription) {
-    // Capture visual state
-    let screenshotBase64 = null;
+    // 1. Capture visual state synchronously
+    let rawScreenshot = null;
     try {
-      screenshotBase64 = captureVisualState();
+      rawScreenshot = captureVisualState();
     } catch (e) {
-      // Visual capture failed; continue without screenshot
+      console.error('Visual capture failed', e);
     }
 
-    const report = generateReport(userDescription, screenshotBase64);
-    const htmlStr = buildHtmlReport(report);
-    const blob = new Blob([htmlStr], { type: 'text/html' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'bug_report_' + Date.now() + '.html';
-    a.click();
-    URL.revokeObjectURL(a.href);
+    // 2. Async flow: show editor, wait for user, then generate HTML
+    showAnnotationEditor(rawScreenshot).then((annotatedScreenshot) => {
+      const report = generateReport(userDescription, annotatedScreenshot);
+      const htmlStr = buildHtmlReport(report);
+      const blob = new Blob([htmlStr], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'bug_report_' + Date.now() + '.html';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════
