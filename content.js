@@ -707,7 +707,7 @@ function showReportForm(dataUrl) {
     const main = document.createElement('div');
     main.style.flex = '1';
     main.style.display = 'flex';
-    main.style.overflow = 'hidden';
+    main.style.overflow = 'auto';
     main.style.flexWrap = 'wrap';
 
     const canvasContainer = document.createElement('div');
