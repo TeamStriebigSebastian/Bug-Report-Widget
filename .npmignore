@@ -1,4 +1,6 @@
 .gemini/
+.claude/
+.vscode/
 bug-report-widget-*.tgz
 Requirements
 Requirements-2
