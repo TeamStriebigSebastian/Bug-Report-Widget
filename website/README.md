@@ -7,7 +7,7 @@ A drop-in JavaScript widget for structured bug reporting. Users click a floating
 ## Installation
 
 ```bash
-npm install bug-report-widget
+npm install bug-report-js
 ```
 
 ---
@@ -17,7 +17,7 @@ npm install bug-report-widget
 **Via script tag:**
 
 ```html
-<script src="node_modules/bug-report-widget/website/bug-report.js"></script>
+<script src="node_modules/bug-report-js/website/bug-report.js"></script>
 ```
 
 The widget auto-initializes and auto-detects the browser language. A floating button appears bottom-right.
@@ -25,7 +25,7 @@ The widget auto-initializes and auto-detects the browser language. A floating bu
 **Via import (bundler):**
 
 ```js
-import BugReportWidget from 'bug-report-widget';
+import BugReportWidget from 'bug-report-js';
 
 BugReportWidget.init({
   language: 'en',
