@@ -29,7 +29,15 @@ To override the configuration, you can initialize it manually:
       network: 200      // Max number of network requests to capture
     },
     sanitization: {
-      safeParams: ['q', 'page', 'limit'], // URL query params that are NOT redacted
+      safeParams: [
+        'q','query','search','keyword','term','id','pid','post_id','item_id','article_id','slug','path','route',
+        'page','p','limit','offset','skip','take','cursor','start','end','per_page','size','index','first','last','next','prev','before','after',
+        'sort','order','orderby','sortby','dir','direction','filter','max','min','category','tag','type','status','state','date','year','month','day',
+        'view','mode','display','format','layout','theme','tab','panel','step','section','anchor','eventorigin',
+        'action','method','module','component','feature','flag','variant','experiment','version','v',
+        'lang','locale','language','hl','gl','country','region','currency',
+        'ref','source','utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid','msclkid','mc_cid','mc_eid'
+      ], // These are the default safe params that won't be redacted
       sensitiveParams: ['token', 'password', 'apikey'] // URL query params to aggressively strip
       // You can also override the full regex pattern list: `patterns: [{ name: 'email', p: /.../g, r: '[REDACTED]' }]`
     },
