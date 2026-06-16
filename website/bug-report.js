@@ -8,17 +8,90 @@
  *  - Visual capture via layout2vector Canvas Writer with click-path annotations
  *  - HTML dashboard export instead of JSON
  */
-(function () {
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    define([], factory);
+  } else if (typeof module === 'object' && module.exports) {
+    module.exports = factory();
+  } else {
+    root.BugReportWidget = factory();
+  }
+}(typeof self !== 'undefined' ? self : this, function () {
   'use strict';
-  if (window.__BugReportLoaded) return;
-  window.__BugReportLoaded = true;
 
   const VERSION = '2.0.0';
   const MAX_INTERACTIONS = 50;
-  const MAX_AGE_MS = 5 * 60 * 1000;
   const MAX_CONSOLE = 100;
   const MAX_ERRORS = 50;
   const MAX_NETWORK = 200;
+
+  let config = {
+    language: 'de',
+    icon: '🐛',
+    primaryColor: '#6366f1',
+    primaryColorHover: '#7577f5',
+    translations: {
+      en: {
+        btnTitle: 'Create Bug Report',
+        modalTitle: 'Bug Report',
+        drawInstruction: 'Draw on the screenshot to highlight the problem.',
+        cancel: 'Cancel',
+        download: 'Download Report',
+        actualPrompt: 'What happened?',
+        actualDesc: 'Briefly describe the problem. (e.g., "Nothing happens when clicking save")',
+        actualPlaceholder: 'Actual state...',
+        expectedPrompt: 'What did you expect?',
+        expectedDesc: 'Describe the expected behavior. (e.g., "Data should be saved")',
+        expectedPlaceholder: 'Expected state...',
+        drawTitle: 'Mark Screenshot',
+        drawDesc: 'You can draw on the screenshot with your mouse to highlight the problem.',
+        actualLabel: 'Actual state',
+        expectedLabel: 'Expected state',
+        screenshotTitle: 'Annotated Screenshot (DOM Capture via layout2vector)',
+        screenshotNA: 'Screenshot not available',
+        interactions: 'User Interactions',
+        consoleLogs: 'Console Logs',
+        jsErrors: 'JavaScript Errors',
+        networkRequests: 'Network Requests',
+        sanitizationSummary: 'Sanitization Summary',
+        redactions: 'redactions',
+        noRedactions: 'No redactions were necessary.',
+        limitations: 'Capture Limitations'
+      },
+      de: {
+        btnTitle: 'Bug Report erstellen',
+        modalTitle: 'Bug Report',
+        drawInstruction: 'Zeichne auf dem Screenshot, um das Problem zu markieren.',
+        cancel: 'Abbrechen',
+        download: 'Report herunterladen',
+        actualPrompt: 'Was ist passiert?',
+        actualDesc: 'Beschreibe kurz das Problem. (z.B. "Beim Klick auf Speichern passiert nichts")',
+        actualPlaceholder: 'Ist-Zustand...',
+        expectedPrompt: 'Was hättest du erwartet?',
+        expectedDesc: 'Beschreibe das gewünschte Verhalten. (z.B. "Die Daten sollten gespeichert werden")',
+        expectedPlaceholder: 'Soll-Zustand...',
+        drawTitle: 'Screenshot markieren',
+        drawDesc: 'Du kannst mit der Maus auf dem Screenshot zeichnen, um das Problem genauer zu zeigen.',
+        actualLabel: 'Ist-Zustand',
+        expectedLabel: 'Soll-Zustand',
+        screenshotTitle: 'Annotierter Screenshot (DOM Capture via layout2vector)',
+        screenshotNA: 'Screenshot nicht verfügbar',
+        interactions: 'User Interactions',
+        consoleLogs: 'Console Logs',
+        jsErrors: 'JavaScript Errors',
+        networkRequests: 'Network Requests',
+        sanitizationSummary: 'Sanitization Summary',
+        redactions: 'redactions',
+        noRedactions: 'Es waren keine Redactions notwendig.',
+        limitations: 'Capture Limitations'
+      }
+    }
+  };
+
+  function t(key) {
+    const langDict = config.translations[config.language] || config.translations['en'];
+    return langDict[key] || key;
+  }
 
   // ═══════════════════════════════════════════════════════════════
   //  SANITIZER
@@ -107,8 +180,6 @@
   const networkRequests = [];
 
   function addInteraction(e) {
-    const cutoff = Date.now() - MAX_AGE_MS;
-    while (interactions.length && interactions[0]._ts < cutoff) interactions.shift();
     e._ts = Date.now();
     interactions.push(e);
     if (interactions.length > MAX_INTERACTIONS) interactions.shift();
@@ -461,7 +532,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Bug Report — ${escapeHtml(reportTime)}</title>
 <style>
-:root{--bg-primary:#0f1117;--bg-secondary:#1a1d27;--bg-card:#222636;--bg-card-hover:#2a2f42;--border:#2d3348;--text-primary:#e8eaf0;--text-secondary:#9096a8;--text-muted:#636882;--accent:#6366f1;--accent-glow:rgba(99,102,241,0.15);--danger:#ef4444;--success:#22c55e;--warning:#f59e0b;--radius:12px;--radius-sm:8px;--font-mono:'SF Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',Roboto,sans-serif}
+:root{--bg-primary:#0f1117;--bg-secondary:#1a1d27;--bg-card:#222636;--bg-card-hover:#2a2f42;--border:#2d3348;--text-primary:#e8eaf0;--text-secondary:#9096a8;--text-muted:#636882;--accent:${config.primaryColor};--accent-glow:${config.primaryColor}25;--danger:#ef4444;--success:#22c55e;--warning:#f59e0b;--radius:12px;--radius-sm:8px;--font-mono:'SF Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',Roboto,sans-serif}
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-primary);line-height:1.6;-webkit-font-smoothing:antialiased}
 .container{max-width:960px;margin:0 auto;padding:32px 24px 64px}
@@ -515,7 +586,7 @@ body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-
 <body>
 <div class="container">
 <div class="report-header">
-<div class="report-logo">🐛</div>
+<div class="report-logo">${config.icon}</div>
 <div class="report-title">Bug Report</div>
 <div class="report-badge">Schema v${escapeHtml(data.schemaVersion||'2.0.0')}</div>
 <div class="report-badge">Tool v${escapeHtml(toolVersion)}</div>
@@ -523,11 +594,11 @@ body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-
 <div class="report-sub">Erstellt am ${escapeHtml(reportTime)}</div>
 
 <div class="user-desc">
-<div class="desc-card actual"><div class="desc-label">Ist-Zustand (Actual)</div><div class="desc-text">${escapeHtml(actual)}</div></div>
-<div class="desc-card expected"><div class="desc-label">Soll-Zustand (Expected)</div><div class="desc-text">${escapeHtml(expected)}</div></div>
+<div class="desc-card actual"><div class="desc-label">${escapeHtml(t('actualLabel'))}</div><div class="desc-text">${escapeHtml(actual)}</div></div>
+<div class="desc-card expected"><div class="desc-label">${escapeHtml(t('expectedLabel'))}</div><div class="desc-text">${escapeHtml(expected)}</div></div>
 </div>
 
-${data.screenshotBase64 ? `<div class="screenshot-container"><div class="screenshot-label">📸 Annotated Screenshot (DOM Capture via layout2vector)</div><img src="${data.screenshotBase64}" alt="Annotated screenshot"></div>` : `<div class="screenshot-container"><div class="screenshot-label">📸 Screenshot not available</div></div>`}
+${data.screenshotBase64 ? `<div class="screenshot-container"><div class="screenshot-label">📸 ${escapeHtml(t('screenshotTitle'))}</div><img src="${data.screenshotBase64}" alt="Annotated screenshot"></div>` : `<div class="screenshot-container"><div class="screenshot-label">📸 ${escapeHtml(t('screenshotNA'))}</div></div>`}
 
 <div class="meta-grid">
 <div class="meta-card"><div class="meta-label">URL</div><div class="meta-value mono">${escapeHtml(pm.url||'N/A')}</div></div>
@@ -539,19 +610,19 @@ ${data.screenshotBase64 ? `<div class="screenshot-container"><div class="screens
 <div class="meta-card"><div class="meta-label">User Agent</div><div class="meta-value mono" style="font-size:10px">${escapeHtml(pm.userAgent||'N/A')}</div></div>
 </div>
 
-<div class="section open" id="sectionInteractions"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">👆</span><span class="section-title">User Interactions</span><span class="section-count">${(data.interactions||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.interactions||[])}</div></div></div>
+<div class="section open" id="sectionInteractions"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">👆</span><span class="section-title">${escapeHtml(t('interactions'))}</span><span class="section-count">${(data.interactions||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.interactions||[])}</div></div></div>
 
-<div class="section" id="sectionConsole"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">📋</span><span class="section-title">Console Logs</span><span class="section-count">${(data.consoleLogs||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.consoleLogs||[])}</div></div></div>
+<div class="section" id="sectionConsole"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">📋</span><span class="section-title">${escapeHtml(t('consoleLogs'))}</span><span class="section-count">${(data.consoleLogs||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.consoleLogs||[])}</div></div></div>
 
-<div class="section" id="sectionErrors"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">⚠️</span><span class="section-title">JavaScript Errors</span><span class="section-count">${(data.jsErrors||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.jsErrors||[])}</div></div></div>
+<div class="section" id="sectionErrors"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">⚠️</span><span class="section-title">${escapeHtml(t('jsErrors'))}</span><span class="section-count">${(data.jsErrors||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.jsErrors||[])}</div></div></div>
 
-<div class="section" id="sectionNetwork"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">🌐</span><span class="section-title">Network Requests</span><span class="section-count">${(data.networkRequests||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.networkRequests||[])}</div></div></div>
+<div class="section" id="sectionNetwork"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">🌐</span><span class="section-title">${escapeHtml(t('networkRequests'))}</span><span class="section-count">${(data.networkRequests||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.networkRequests||[])}</div></div></div>
 
-<div class="section" id="sectionSanitization"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">🔒</span><span class="section-title">Sanitization Summary</span><span class="section-count">${data.sanitizationSummary?.totalRedactions||0} redactions</span><span class="section-chevron">▶</span></div><div class="section-body">
-${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSummary.redactionsByType).length > 0 ? `<div class="summary-grid">${Object.entries(data.sanitizationSummary.redactionsByType).map(([t,c])=>`<div class="summary-item"><div class="summary-item-label">${escapeHtml(t)}</div><div class="summary-item-value">${c}</div></div>`).join('')}</div>` : '<p style="color:var(--text-muted);font-size:13px">No redactions were necessary.</p>'}
+<div class="section" id="sectionSanitization"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">🔒</span><span class="section-title">${escapeHtml(t('sanitizationSummary'))}</span><span class="section-count">${data.sanitizationSummary?.totalRedactions||0} ${escapeHtml(t('redactions'))}</span><span class="section-chevron">▶</span></div><div class="section-body">
+${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSummary.redactionsByType).length > 0 ? `<div class="summary-grid">${Object.entries(data.sanitizationSummary.redactionsByType).map(([t,c])=>`<div class="summary-item"><div class="summary-item-label">${escapeHtml(t)}</div><div class="summary-item-value">${c}</div></div>`).join('')}</div>` : `<p style="color:var(--text-muted);font-size:13px">${escapeHtml(t('noRedactions'))}</p>`}
 </div></div>
 
-<div class="section" id="sectionLimitations"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">ℹ️</span><span class="section-title">Capture Limitations</span><span class="section-chevron">▶</span></div><div class="section-body"><ul class="limitations-list">${(data.captureLimitations||[]).map(l=>`<li>${escapeHtml(l)}</li>`).join('')}</ul></div></div>
+<div class="section" id="sectionLimitations"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">ℹ️</span><span class="section-title">${escapeHtml(t('limitations'))}</span><span class="section-chevron">▶</span></div><div class="section-body"><ul class="limitations-list">${(data.captureLimitations||[]).map(l=>`<li>${escapeHtml(l)}</li>`).join('')}</ul></div></div>
 
 <script type="application/json" id="bug-report-json">${escapeHtml(JSON.stringify(data,null,2))}</script>
 
@@ -624,21 +695,21 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
       header.style.borderBottom = '1px solid #2d3348';
       header.innerHTML = `
         <div style="font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 10px;">
-          🐛 Bug Report erstellen
+          ${config.icon} ${escapeHtml(t('btnTitle'))}
         </div>
         <div style="display: flex; gap: 12px;">
-          <button id="br-editor-cancel" style="padding: 10px 16px; background: #222636; border: 1px solid #2d3348; color: #e8eaf0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">Abbrechen</button>
-          <button id="br-editor-save" disabled style="padding: 10px 20px; background: #6366f1; border: none; color: #ffffff; border-radius: 8px; cursor: not-allowed; opacity: 0.5; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px rgba(99,102,241,0.3); transition: all 0.2s;">Report herunterladen</button>
+          <button id="br-editor-cancel" style="padding: 10px 16px; background: #222636; border: 1px solid #2d3348; color: #e8eaf0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s;">${escapeHtml(t('cancel'))}</button>
+          <button id="br-editor-save" disabled style="padding: 10px 20px; background: ${config.primaryColor}; border: none; color: #ffffff; border-radius: 8px; cursor: not-allowed; opacity: 0.5; font-size: 13px; font-weight: 700; box-shadow: 0 4px 12px ${config.primaryColor}4D; transition: all 0.2s;">${escapeHtml(t('download'))}</button>
         </div>
       `;
 
       const scrollbarStyle = document.createElement('style');
       scrollbarStyle.textContent = `
-        .br-modal-main { scrollbar-width: auto; scrollbar-color: #6366f1 #1a1d27; }
+        .br-modal-main { scrollbar-width: auto; scrollbar-color: ${config.primaryColor} #1a1d27; }
         .br-modal-main::-webkit-scrollbar { width: 10px; }
-        .br-modal-main::-webkit-scrollbar-track { background: #1a1d27; border-radius: 5px; }
-        .br-modal-main::-webkit-scrollbar-thumb { background: #6366f1; border-radius: 5px; border: 2px solid #1a1d27; }
-        .br-modal-main::-webkit-scrollbar-thumb:hover { background: #818cf8; }
+        .br-modal-main::-webkit-scrollbar-track { background: transparent; }
+        .br-modal-main::-webkit-scrollbar-thumb { background: ${config.primaryColor}; border-radius: 5px; border: 2px solid #1a1d27; }
+        .br-modal-main::-webkit-scrollbar-thumb:hover { background: ${config.primaryColorHover}; }
       `;
       overlay.appendChild(scrollbarStyle);
 
@@ -678,18 +749,18 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
 
       formContainer.innerHTML = `
         <div>
-          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">Was ist passiert? <span style="color:#ef4444">*</span></h3>
-          <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">Beschreibe kurz das Problem. (z.B. "Beim Klick auf Speichern passiert nichts")</p>
-          <textarea id="br-input-actual" placeholder="Ist-Zustand..." style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">${escapeHtml(t('actualPrompt'))} <span style="color:#ef4444">*</span></h3>
+          <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">${escapeHtml(t('actualDesc'))}</p>
+          <textarea id="br-input-actual" placeholder="${escapeHtml(t('actualPlaceholder'))}" style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
         </div>
         <div>
-          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">Was hättest du erwartet? <span style="color:#ef4444">*</span></h3>
-          <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">Beschreibe das gewünschte Verhalten. (z.B. "Die Daten sollten gespeichert werden")</p>
-          <textarea id="br-input-expected" placeholder="Soll-Zustand..." style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
+          <h3 style="margin: 0 0 8px 0; font-size: 14px; color: #e8eaf0;">${escapeHtml(t('expectedPrompt'))} <span style="color:#ef4444">*</span></h3>
+          <p style="margin: 0 0 8px 0; font-size: 12px; color: #9096a8;">${escapeHtml(t('expectedDesc'))}</p>
+          <textarea id="br-input-expected" placeholder="${escapeHtml(t('expectedPlaceholder'))}" style="width: 100%; box-sizing: border-box; height: 100px; background: #0f1117; border: 1px solid #2d3348; border-radius: 8px; color: #e8eaf0; padding: 12px; font-family: inherit; font-size: 13px; resize: vertical;"></textarea>
         </div>
         <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.2); border-radius: 8px; padding: 16px;">
-          <h3 style="margin: 0 0 8px 0; font-size: 13px; color: #818cf8; display: flex; align-items: center; gap: 6px;">🖍 Screenshot markieren</h3>
-          <p style="margin: 0; font-size: 12px; color: #9096a8; line-height: 1.5;">Du kannst mit der Maus auf dem Screenshot zeichnen, um das Problem genauer zu zeigen.</p>
+          <h3 style="margin: 0 0 8px 0; font-size: 13px; color: ${config.primaryColorHover}; display: flex; align-items: center; gap: 6px;">🖍 ${escapeHtml(t('drawTitle'))}</h3>
+          <p style="margin: 0; font-size: 12px; color: #9096a8; line-height: 1.5;">${escapeHtml(t('drawDesc'))}</p>
         </div>
       `;
 
@@ -834,18 +905,18 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
       #br-widget-btn {
         position:fixed; bottom:20px; right:20px; z-index:2147483647;
         width:52px; height:52px; border-radius:50%; border:none; cursor:pointer;
-        background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff;
+        background:linear-gradient(135deg,${config.primaryColor},${config.primaryColorHover}); color:#fff;
         font-size:24px; display:flex; align-items:center; justify-content:center;
-        box-shadow:0 4px 20px rgba(99,102,241,0.4); transition:all .2s ease;
+        box-shadow:0 4px 20px ${config.primaryColor}66; transition:all .2s ease;
       }
-      #br-widget-btn:hover { transform:scale(1.1); box-shadow:0 6px 28px rgba(99,102,241,0.55); }
+      #br-widget-btn:hover { transform:scale(1.1); box-shadow:0 6px 28px ${config.primaryColor}8C; }
       .br-privacy { font-size:11px; color:#636882; background:rgba(34,197,94,0.06); border:1px solid rgba(34,197,94,0.15);
         border-radius:6px; padding:8px 10px; margin-bottom:16px; line-height:1.5; }
       .br-actions { display:flex; gap:8px; }
       .br-btn { flex:1; padding:10px 14px; border:none; border-radius:10px; font-size:13px; font-weight:600;
         cursor:pointer; transition:all .15s; font-family:inherit; display:flex; align-items:center; justify-content:center; gap:6px; }
-      .br-btn-primary { background:#6366f1; color:#fff; box-shadow:0 2px 8px rgba(99,102,241,0.2); }
-      .br-btn-primary:hover { background:#7577f5; box-shadow:0 4px 16px rgba(99,102,241,0.3); transform:translateY(-1px); }
+      .br-btn-primary { background:${config.primaryColor}; color:#fff; box-shadow:0 2px 8px ${config.primaryColor}33; }
+      .br-btn-primary:hover { background:${config.primaryColorHover}; box-shadow:0 4px 16px ${config.primaryColor}4D; transform:translateY(-1px); }
       .br-btn-secondary { background:#222636; color:#9096a8; border:1px solid #2d3348; }
       .br-btn-secondary:hover { background:#2a2f42; color:#e8eaf0; }
     `;
@@ -858,8 +929,8 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
     // Floating button
     const btn = document.createElement('button');
     btn.id = 'br-widget-btn';
-    btn.innerHTML = '🐛';
-    btn.title = 'Bug Report erstellen';
+    btn.innerHTML = config.icon;
+    btn.title = t('btnTitle');
     document.body.appendChild(btn);
 
     btn.addEventListener('click', () => {
@@ -868,10 +939,47 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
   }
 
   // ═══════════════════════════════════════════════════════════════
-  //  INIT
+  //  INIT & EXPORT
   // ═══════════════════════════════════════════════════════════════
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', createUI);
-  else createUI();
+  let isInitialized = false;
 
-})();
+  function init(options = {}) {
+    if (isInitialized) return;
+    
+    // Merge options
+    if (options.language) config.language = options.language;
+    if (options.icon) config.icon = options.icon;
+    if (options.primaryColor) {
+      config.primaryColor = options.primaryColor;
+      // Simple heuristic for hover if not provided
+      config.primaryColorHover = options.primaryColorHover || options.primaryColor;
+    }
+    if (options.translations) {
+      for (const [lang, dict] of Object.entries(options.translations)) {
+        if (!config.translations[lang]) config.translations[lang] = {};
+        Object.assign(config.translations[lang], dict);
+      }
+    }
+
+    isInitialized = true;
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', createUI);
+    } else {
+      createUI();
+    }
+  }
+
+  // Auto-init if no script tag attributes say otherwise, or just auto-init with defaults 
+  // for backwards compatibility if loaded directly via script tag.
+  // We check if it's running in browser and not via import/require
+  if (typeof window !== 'undefined' && typeof module === 'undefined' && typeof define === 'undefined') {
+    // If it's just a raw script tag, we auto-initialize with defaults
+    setTimeout(() => {
+      if (!isInitialized) init();
+    }, 0);
+  }
+
+  return { init };
+}));

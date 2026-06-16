@@ -4,14 +4,49 @@ A self-contained JavaScript widget you can embed in any website. No browser exte
 
 ## Integration
 
-Add a single `<script>` tag to your website, before the closing `</body>` tag:
+### Via Script Tag
+
+Add a single `<script>` tag to your website:
 
 ```html
 <script src="bug-report.js"></script>
 ```
 
-That's it. A floating 🐛 button appears in the bottom-right corner.
+By default, this will automatically initialize the widget in German (`de`). 
+To override the configuration, you can initialize it manually:
 
+```html
+<script src="bug-report.js"></script>
+<script>
+  BugReportWidget.init({
+    language: 'en', // 'de' or 'en'
+    icon: '💬', // Customize the floating button icon
+    primaryColor: '#e11d48', // Main CI color (e.g. rose-600)
+    primaryColorHover: '#be123c', // Hover state
+    translations: {
+      en: {
+        btnTitle: 'Report an Issue' // Override specific strings
+      }
+    }
+  });
+</script>
+```
+
+### Via NPM
+
+You can also install the widget via NPM:
+
+```bash
+npm install bug-report-widget
+```
+
+And import it in your application:
+
+```javascript
+import BugReportWidget from 'bug-report-widget';
+
+BugReportWidget.init({ language: 'en' });
+```
 ## How It Works
 
 1. The script runs in the background, capturing interactions, console logs, JS errors, and network requests
