@@ -97,7 +97,20 @@
         sanitizationSummary: 'Sanitization Summary',
         redactions: 'redactions',
         noRedactions: 'No redactions were necessary.',
-        limitations: 'Capture Limitations'
+        limitations: 'Capture Limitations',
+        reportTitle: 'Bug Report',
+        createdAt: 'Created on',
+        metaUrl: 'URL',
+        metaBrowser: 'Browser',
+        metaViewport: 'Viewport',
+        metaScreenResolution: 'Screen Resolution',
+        metaScrollPosition: 'Scroll Position',
+        metaZoomLevel: 'Zoom Level',
+        metaUserAgent: 'User Agent',
+        noInfo: 'No information provided',
+        unknown: 'Unknown',
+        generatedAt: 'Generated',
+        reportFooter: 'Bug Report Dashboard'
       },
       de: {
         btnTitle: 'Bug Report erstellen',
@@ -124,7 +137,20 @@
         sanitizationSummary: 'Sanitization Summary',
         redactions: 'redactions',
         noRedactions: 'Es waren keine Redactions notwendig.',
-        limitations: 'Capture Limitations'
+        limitations: 'Capture Limitations',
+        reportTitle: 'Bug Report',
+        createdAt: 'Erstellt am',
+        metaUrl: 'URL',
+        metaBrowser: 'Browser',
+        metaViewport: 'Ansichtsfenster',
+        metaScreenResolution: 'Bildschirmauflösung',
+        metaScrollPosition: 'Scrollposition',
+        metaZoomLevel: 'Zoom-Stufe',
+        metaUserAgent: 'User Agent',
+        noInfo: 'Keine Angabe',
+        unknown: 'Unbekannt',
+        generatedAt: 'Generiert',
+        reportFooter: 'Bug Report Dashboard'
       }
     }
   };
@@ -538,16 +564,16 @@
     const reportTime = data.reportTimestamp ? new Date(data.reportTimestamp).toLocaleString('de-DE', {
       year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'
     }) : 'N/A';
-    const actual = data.userDescription?.actual || 'Keine Angabe';
-    const expected = data.userDescription?.expected || 'Keine Angabe';
+    const actual = data.userDescription?.actual || t('noInfo');
+    const expected = data.userDescription?.expected || t('noInfo');
     const pm = data.pageMetadata || {};
 
     return `<!DOCTYPE html>
-<html lang="de">
+<html lang="${config.language}">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Bug Report — ${escapeHtml(reportTime)}</title>
+<title>${escapeHtml(t('reportTitle'))} — ${escapeHtml(reportTime)}</title>
 <style>
 :root{--bg-primary:#0f1117;--bg-secondary:#1a1d27;--bg-card:#222636;--bg-card-hover:#2a2f42;--border:#2d3348;--text-primary:#e8eaf0;--text-secondary:#9096a8;--text-muted:#636882;--accent:${config.primaryColor};--accent-glow:${config.primaryColor}25;--danger:#ef4444;--success:#22c55e;--warning:#f59e0b;--radius:12px;--radius-sm:8px;--font-mono:'SF Mono','Fira Code','Cascadia Code','Consolas',monospace;--font-sans:-apple-system,BlinkMacSystemFont,'Segoe UI','Inter',Roboto,sans-serif}
 *{margin:0;padding:0;box-sizing:border-box}
@@ -604,11 +630,11 @@ body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-
 <div class="container">
 <div class="report-header">
 <div class="report-logo">${config.icon}</div>
-<div class="report-title">Bug Report</div>
+<div class="report-title">${escapeHtml(t('reportTitle'))}</div>
 <div class="report-badge">Schema v${escapeHtml(data.schemaVersion||'2.0.0')}</div>
 <div class="report-badge">Tool v${escapeHtml(toolVersion)}</div>
 </div>
-<div class="report-sub">Erstellt am ${escapeHtml(reportTime)}</div>
+<div class="report-sub">${escapeHtml(t('createdAt'))} ${escapeHtml(reportTime)}</div>
 
 <div class="user-desc">
 <div class="desc-card actual"><div class="desc-label">${escapeHtml(t('actualLabel'))}</div><div class="desc-text">${escapeHtml(actual)}</div></div>
@@ -618,13 +644,13 @@ body{font-family:var(--font-sans);background:var(--bg-primary);color:var(--text-
 ${data.screenshotBase64 ? `<div class="screenshot-container"><div class="screenshot-label">📸 ${escapeHtml(t('screenshotTitle'))}</div><img src="${data.screenshotBase64}" alt="Annotated screenshot"></div>` : `<div class="screenshot-container"><div class="screenshot-label">📸 ${escapeHtml(t('screenshotNA'))}</div></div>`}
 
 <div class="meta-grid">
-<div class="meta-card"><div class="meta-label">URL</div><div class="meta-value mono">${escapeHtml(pm.url||'N/A')}</div></div>
-<div class="meta-card"><div class="meta-label">Browser</div><div class="meta-value">${escapeHtml((pm.browserName||'Unknown')+' '+(pm.browserVersion||''))}</div></div>
-<div class="meta-card"><div class="meta-label">Viewport</div><div class="meta-value">${pm.viewportSize?pm.viewportSize.width+' × '+pm.viewportSize.height:'N/A'}</div></div>
-<div class="meta-card"><div class="meta-label">Screen Resolution</div><div class="meta-value">${pm.screenResolution?pm.screenResolution.width+' × '+pm.screenResolution.height:'N/A'}</div></div>
-<div class="meta-card"><div class="meta-label">Scroll Position</div><div class="meta-value">${pm.scrollPosition?'X: '+pm.scrollPosition.x+'  Y: '+pm.scrollPosition.y:'N/A'}</div></div>
-<div class="meta-card"><div class="meta-label">Zoom Level</div><div class="meta-value">${pm.zoomLevel!=null?pm.zoomLevel:'N/A'}</div></div>
-<div class="meta-card"><div class="meta-label">User Agent</div><div class="meta-value mono" style="font-size:10px">${escapeHtml(pm.userAgent||'N/A')}</div></div>
+<div class="meta-card"><div class="meta-label">${escapeHtml(t('metaUrl'))}</div><div class="meta-value mono">${escapeHtml(pm.url||'N/A')}</div></div>
+<div class="meta-card"><div class="meta-label">${escapeHtml(t('metaBrowser'))}</div><div class="meta-value">${escapeHtml((pm.browserName||t('unknown'))+' '+(pm.browserVersion||''))}</div></div>
+<div class="meta-card"><div class="meta-label">${escapeHtml(t('metaViewport'))}</div><div class="meta-value">${pm.viewportSize?pm.viewportSize.width+' × '+pm.viewportSize.height:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">${escapeHtml(t('metaScreenResolution'))}</div><div class="meta-value">${pm.screenResolution?pm.screenResolution.width+' × '+pm.screenResolution.height:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">${escapeHtml(t('metaScrollPosition'))}</div><div class="meta-value">${pm.scrollPosition?'X: '+pm.scrollPosition.x+'  Y: '+pm.scrollPosition.y:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">${escapeHtml(t('metaZoomLevel'))}</div><div class="meta-value">${pm.zoomLevel!=null?pm.zoomLevel:'N/A'}</div></div>
+<div class="meta-card"><div class="meta-label">${escapeHtml(t('metaUserAgent'))}</div><div class="meta-value mono" style="font-size:10px">${escapeHtml(pm.userAgent||'N/A')}</div></div>
 </div>
 
 <div class="section open" id="sectionInteractions"><div class="section-header" onclick="this.parentElement.classList.toggle('open')"><span class="section-icon">👆</span><span class="section-title">${escapeHtml(t('interactions'))}</span><span class="section-count">${(data.interactions||[]).length}</span><span class="section-chevron">▶</span></div><div class="section-body"><div class="json-block">${syntaxHighlight(data.interactions||[])}</div></div></div>
@@ -643,7 +669,7 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
 
 <script type="application/json" id="bug-report-json">${escapeHtml(JSON.stringify(data,null,2))}</script>
 
-<div class="report-footer">Bug Report Dashboard — Schema v${escapeHtml(data.schemaVersion||'2.0.0')} — Tool v${escapeHtml(toolVersion)}<br>Generated ${escapeHtml(reportTime)}</div>
+<div class="report-footer">${escapeHtml(t('reportFooter'))} — Schema v${escapeHtml(data.schemaVersion||'2.0.0')} — Tool v${escapeHtml(toolVersion)}<br>${escapeHtml(t('generatedAt'))} ${escapeHtml(reportTime)}</div>
 </div>
 </body>
 </html>`;
@@ -1005,7 +1031,13 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
 
   function init(options = {}) {
     if (isInitialized) return;
-    
+
+    // Auto-detect language from browser locale if not explicitly set
+    if (!options.language && typeof navigator !== 'undefined' && navigator.language) {
+      const lang = navigator.language.split('-')[0];
+      if (config.translations[lang]) config.language = lang;
+    }
+
     // Merge options
     if (options.language) config.language = options.language;
     if (options.icon) config.icon = options.icon;

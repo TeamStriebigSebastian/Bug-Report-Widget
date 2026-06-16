@@ -19,18 +19,9 @@ const EXTENSION_VERSION = '2.0.0';
 
 const InteractionBuffer = (() => {
   const MAX_ENTRIES = 50;
-  const MAX_AGE_MS = 5 * 60 * 1000; // 5 minutes
   const buffer = [];
 
-  function evictStale() {
-    const cutoff = Date.now() - MAX_AGE_MS;
-    while (buffer.length > 0 && buffer[0]._ts < cutoff) {
-      buffer.shift();
-    }
-  }
-
   function add(entry) {
-    evictStale();
     entry._ts = Date.now();
     buffer.push(entry);
     if (buffer.length > MAX_ENTRIES) {
@@ -39,12 +30,10 @@ const InteractionBuffer = (() => {
   }
 
   function getAll() {
-    evictStale();
     return buffer.map(({ _ts, ...rest }) => rest);
   }
 
   function getRaw() {
-    evictStale();
     return [...buffer];
   }
 

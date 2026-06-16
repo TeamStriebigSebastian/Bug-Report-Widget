@@ -1,0 +1,27 @@
+{
+  "name": "bug-report-widget",
+  "version": "2.0.0",
+  "description": "A drop-in JavaScript widget to generate comprehensive bug reports with DOM capture, interactions, console logs, and JS errors.",
+  "main": "website/bug-report.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TeamStriebigSebastian/Bug-Report-Widget.git"
+  },
+  "keywords": [
+    "bug",
+    "report",
+    "widget",
+    "feedback",
+    "DOM capture",
+    "interactions"
+  ],
+  "author": "Antigravity",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/TeamStriebigSebastian/Bug-Report-Widget/issues"
+  },
+  "homepage": "https://github.com/TeamStriebigSebastian/Bug-Report-Widget#readme"
+}
