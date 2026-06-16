@@ -20,17 +20,47 @@
   'use strict';
 
   const VERSION = '2.0.0';
-  const MAX_INTERACTIONS = 50;
-  const MAX_CONSOLE = 100;
-  const MAX_ERRORS = 50;
-  const MAX_NETWORK = 200;
+  // These are now defaults in config
 
   let config = {
     language: 'de',
     icon: '🐛',
     primaryColor: '#6366f1',
     primaryColorHover: '#7577f5',
-    tooltipMessage: null, // Native tooltip feature
+    tooltipMessage: null,
+    limits: {
+      interactions: 50,
+      console: 100,
+      errors: 50,
+      network: 200
+    },
+    sanitization: {
+      safeParams: [
+        'q','query','search','id','page','limit','offset','sort','order','filter',
+        'lang','locale','category','tag','type','status','date','start','end',
+        'ref','source','utm_source','utm_medium','utm_campaign','step','section','anchor','eventorigin'
+      ],
+      sensitiveParams: [
+        'token','access_token','refresh_token','id_token','auth_token',
+        'session','sessionid','session_id','sid','apikey','api_key','key','client_secret','secret',
+        'password','passwd','pwd','email','mail','e-mail',
+        'userid','user_id','uid','customerid','customer_id','orderid','order_id',
+        'ssn','credit_card','cc','cvv','auth','authorization','bearer',
+        'code','otp','verification','reset_token','nonce','csrf','xsrf'
+      ],
+      patterns: [
+        { name:'email', p:/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, r:'[REDACTED_EMAIL]' },
+        { name:'phone', p:/(?<![a-zA-Z0-9])(?:\+?\d{1,4}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,5}(?![a-zA-Z0-9])/g, r:'[REDACTED_PHONE]' },
+        { name:'bearer_token', p:/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, r:'Bearer [REDACTED_TOKEN]' },
+        { name:'jwt', p:/eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_.+/=]*/g, r:'[REDACTED_JWT]' },
+        { name:'api_key', p:/(?:api[_\-]?key|apikey)\s*[:=]\s*["']?[A-Za-z0-9\-._~+/]{8,}["']?/gi, r:'[REDACTED_API_KEY]' },
+        { name:'generic_secret', p:/(?:secret|private[_\-]?key|client[_\-]?secret)\s*[:=]\s*["']?[A-Za-z0-9\-._~+/]{8,}["']?/gi, r:'[REDACTED_SECRET]' },
+        { name:'password_field', p:/(?:password|passwd|pwd)\s*[:=]\s*["']?[^\s"',}{]{1,}["']?/gi, r:'[REDACTED_PASSWORD]' },
+        { name:'session_id', p:/(?:session[_\-]?id|sid|jsessionid|phpsessid)\s*[:=]\s*["']?[A-Za-z0-9\-._]{8,}["']?/gi, r:'[REDACTED_SESSION]' },
+        { name:'cookie', p:/(?:cookie|set-cookie)\s*[:=]\s*["']?[^\n"']{8,}["']?/gi, r:'[REDACTED_COOKIE]' },
+        { name:'authorization', p:/(?:authorization)\s*[:=]\s*["']?[^\n"']{8,}["']?/gi, r:'[REDACTED_AUTH]' }
+      ]
+    },
     translations: {
       en: {
         btnTitle: 'Create Bug Report',
@@ -98,32 +128,8 @@
   //  SANITIZER
   // ═══════════════════════════════════════════════════════════════
 
-  const SAFE_PARAMS = new Set([
-    'page','p','per_page','limit','offset','sort','order','orderby','sortby','dir','direction',
-    'filter','q','query','search','tab','view','mode','display','lang','locale','language','hl',
-    'feature','flag','variant','experiment','category','type','status','state',
-    'ref','source','utm_source','utm_medium','utm_campaign','step','section','anchor','eventorigin',
-  ]);
-  const SENSITIVE_PARAMS = new Set([
-    'token','access_token','refresh_token','id_token','auth_token',
-    'session','sessionid','session_id','sid','apikey','api_key','key','client_secret','secret',
-    'password','passwd','pwd','email','mail','e-mail',
-    'userid','user_id','uid','customerid','customer_id','orderid','order_id',
-    'ssn','credit_card','cc','cvv','auth','authorization','bearer',
-    'code','otp','verification','reset_token','nonce','csrf','xsrf',
-  ]);
-  const PATTERNS = [
-    { name:'email', p:/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g, r:'[REDACTED_EMAIL]' },
-    { name:'phone', p:/(?<![a-zA-Z0-9])(?:\+?\d{1,4}[\s\-.]?)?\(?\d{2,4}\)?[\s\-.]?\d{3,4}[\s\-.]?\d{3,5}(?![a-zA-Z0-9])/g, r:'[REDACTED_PHONE]' },
-    { name:'bearer_token', p:/Bearer\s+[A-Za-z0-9\-._~+/]+=*/gi, r:'Bearer [REDACTED_TOKEN]' },
-    { name:'jwt', p:/eyJ[A-Za-z0-9\-_]+\.eyJ[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_.+/=]*/g, r:'[REDACTED_JWT]' },
-    { name:'api_key', p:/(?:api[_\-]?key|apikey)\s*[:=]\s*["']?[A-Za-z0-9\-._~+/]{8,}["']?/gi, r:'[REDACTED_API_KEY]' },
-    { name:'generic_secret', p:/(?:secret|private[_\-]?key|client[_\-]?secret)\s*[:=]\s*["']?[A-Za-z0-9\-._~+/]{8,}["']?/gi, r:'[REDACTED_SECRET]' },
-    { name:'password_field', p:/(?:password|passwd|pwd)\s*[:=]\s*["']?[^\s"',}{]{1,}["']?/gi, r:'[REDACTED_PASSWORD]' },
-    { name:'session_id', p:/(?:session[_\-]?id|sid|jsessionid|phpsessid)\s*[:=]\s*["']?[A-Za-z0-9\-._]{8,}["']?/gi, r:'[REDACTED_SESSION]' },
-    { name:'cookie', p:/(?:cookie|set-cookie)\s*[:=]\s*["']?[^\n"']{8,}["']?/gi, r:'[REDACTED_COOKIE]' },
-    { name:'authorization', p:/(?:authorization)\s*[:=]\s*["']?[^\n"']{8,}["']?/gi, r:'[REDACTED_AUTH]' },
-  ];
+  let safeParamsSet = new Set(config.sanitization.safeParams);
+  let sensitiveParamsSet = new Set(config.sanitization.sensitiveParams);
 
   function sanitizeUrl(u) {
     if (!u || typeof u !== 'string') return u;
@@ -132,8 +138,8 @@
       const sp = new URLSearchParams();
       for (const [k, v] of url.searchParams) {
         const kl = k.toLowerCase();
-        if (SENSITIVE_PARAMS.has(kl)) continue;
-        else if (SAFE_PARAMS.has(kl)) sp.set(k, v);
+        if (sensitiveParamsSet.has(kl)) continue;
+        else if (safeParamsSet.has(kl)) sp.set(k, v);
         else sp.set(k, '[PARAM_REMOVED]');
       }
       url.search = sp.toString();
@@ -145,7 +151,7 @@
   function sanitizeText(t, rd) {
     if (!t || typeof t !== 'string') return t;
     let r = t;
-    for (const { name, p, r: rpl } of PATTERNS) {
+    for (const { name, p, r: rpl } of config.sanitization.patterns) {
       p.lastIndex = 0;
       const before = r;
       r = r.replace(p, rpl);
@@ -183,11 +189,11 @@
   function addInteraction(e) {
     e._ts = Date.now();
     interactions.push(e);
-    if (interactions.length > MAX_INTERACTIONS) interactions.shift();
+    if (interactions.length > config.limits.interactions) interactions.shift();
   }
-  function addConsole(e) { consoleLogs.push(e); if (consoleLogs.length > MAX_CONSOLE) consoleLogs.shift(); }
-  function addError(e) { jsErrors.push(e); if (jsErrors.length > MAX_ERRORS) jsErrors.shift(); }
-  function addNetwork(e) { networkRequests.push(e); if (networkRequests.length > MAX_NETWORK) networkRequests.shift(); }
+  function addConsole(e) { consoleLogs.push(e); if (consoleLogs.length > config.limits.console) consoleLogs.shift(); }
+  function addError(e) { jsErrors.push(e); if (jsErrors.length > config.limits.errors) jsErrors.shift(); }
+  function addNetwork(e) { networkRequests.push(e); if (networkRequests.length > config.limits.network) networkRequests.shift(); }
 
   // ═══════════════════════════════════════════════════════════════
   //  HELPERS
@@ -998,6 +1004,18 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
       config.primaryColor = options.primaryColor;
       // Simple heuristic for hover if not provided
       config.primaryColorHover = options.primaryColorHover || options.primaryColor;
+    }
+    if (options.limits) {
+      Object.assign(config.limits, options.limits);
+    }
+    if (options.sanitization) {
+      if (options.sanitization.safeParams) config.sanitization.safeParams = options.sanitization.safeParams;
+      if (options.sanitization.sensitiveParams) config.sanitization.sensitiveParams = options.sanitization.sensitiveParams;
+      if (options.sanitization.patterns) config.sanitization.patterns = options.sanitization.patterns;
+      
+      // Update Sets
+      safeParamsSet = new Set(config.sanitization.safeParams);
+      sensitiveParamsSet = new Set(config.sanitization.sensitiveParams);
     }
     if (options.translations) {
       for (const [lang, dict] of Object.entries(options.translations)) {

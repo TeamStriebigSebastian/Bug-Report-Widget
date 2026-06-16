@@ -24,6 +24,15 @@ To override the configuration, you can initialize it manually:
     tooltipMessage: 'Click the <strong>{icon} Button</strong> to report an issue!', // Native onboarding tooltip (use {icon} variable)
     primaryColor: '#e11d48', // Main CI color (e.g. rose-600)
     primaryColorHover: '#be123c', // Hover state
+    limits: {
+      interactions: 50, // Max number of clicks/scrolls to capture
+      network: 200      // Max number of network requests to capture
+    },
+    sanitization: {
+      safeParams: ['q', 'page', 'limit'], // URL query params that are NOT redacted
+      sensitiveParams: ['token', 'password', 'apikey'] // URL query params to aggressively strip
+      // You can also override the full regex pattern list: `patterns: [{ name: 'email', p: /.../g, r: '[REDACTED]' }]`
+    },
     translations: {
       en: {
         btnTitle: 'Report an Issue' // Override specific strings
