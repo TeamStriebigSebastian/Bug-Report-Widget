@@ -36,9 +36,19 @@
     },
     sanitization: {
       safeParams: [
-        'q','query','search','id','page','limit','offset','sort','order','filter',
-        'lang','locale','category','tag','type','status','date','start','end',
-        'ref','source','utm_source','utm_medium','utm_campaign','step','section','anchor','eventorigin'
+        // Pagination & Navigation
+        'q','query','search','keyword','term','id','pid','post_id','item_id','article_id','slug','path','route',
+        'page','p','limit','offset','skip','take','cursor','start','end','per_page','size','index','first','last','next','prev','before','after',
+        // Sorting & Filtering
+        'sort','order','orderby','sortby','dir','direction','filter','max','min','category','tag','type','status','state','date','year','month','day',
+        // UI & Display
+        'view','mode','display','format','layout','theme','tab','panel','step','section','anchor','eventorigin',
+        // App State & Routing
+        'action','method','module','component','feature','flag','variant','experiment','version','v',
+        // Localization
+        'lang','locale','language','hl','gl','country','region','currency',
+        // Marketing & Analytics
+        'ref','source','utm_source','utm_medium','utm_campaign','utm_term','utm_content','gclid','fbclid','msclkid','mc_cid','mc_eid'
       ],
       sensitiveParams: [
         'token','access_token','refresh_token','id_token','auth_token',
