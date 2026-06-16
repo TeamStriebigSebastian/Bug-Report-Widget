@@ -1,6 +1,6 @@
 {
   "name": "bug-report-js",
-  "version": "2.3.0",
+  "version": "2.3.1",
   "description": "A drop-in JavaScript widget to generate comprehensive bug reports with DOM capture, interactions, console logs, and JS errors.",
   "main": "website/bug-report.js",
   "scripts": {
@@ -18,7 +18,10 @@
     "DOM capture",
     "interactions"
   ],
-  "author": "Antigravity",
+  "author": {
+    "name": "Antigravity",
+    "url": "https://striebig.pm"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/TeamStriebigSebastian/Bug-Report-Widget/issues"
