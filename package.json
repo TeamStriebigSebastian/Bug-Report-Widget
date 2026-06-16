@@ -1,6 +1,6 @@
 {
   "name": "bug-report-widget",
-  "version": "2.0.0",
+  "version": "2.3.0",
   "description": "A drop-in JavaScript widget to generate comprehensive bug reports with DOM capture, interactions, console logs, and JS errors.",
   "main": "website/bug-report.js",
   "scripts": {
