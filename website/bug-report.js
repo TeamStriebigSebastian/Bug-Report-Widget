@@ -30,6 +30,7 @@
     icon: '🐛',
     primaryColor: '#6366f1',
     primaryColorHover: '#7577f5',
+    tooltipMessage: null, // Native tooltip feature
     translations: {
       en: {
         btnTitle: 'Create Bug Report',
@@ -910,6 +911,24 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
         box-shadow:0 4px 20px ${config.primaryColor}66; transition:all .2s ease;
       }
       #br-widget-btn:hover { transform:scale(1.1); box-shadow:0 6px 28px ${config.primaryColor}8C; }
+      #br-widget-hint {
+        position:fixed; bottom:84px; right:20px; z-index:2147483640;
+        background:#222636; border:1px solid ${config.primaryColor};
+        border-radius:12px; padding:12px 16px; max-width:220px;
+        font-size:12px; color:#9096a8; line-height:1.5;
+        box-shadow:0 8px 32px rgba(0,0,0,0.4);
+        opacity:0; transform:translateY(10px); transition:all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        pointer-events:none;
+      }
+      #br-widget-hint.show { opacity:1; transform:translateY(0); }
+      #br-widget-hint::after {
+        content:''; position:absolute; bottom:-7px; right:20px;
+        width:12px; height:12px; background:#222636;
+        border-right:1px solid ${config.primaryColor};
+        border-bottom:1px solid ${config.primaryColor};
+        transform:rotate(45deg);
+      }
+      #br-widget-hint strong { color:${config.primaryColorHover}; }
       .br-privacy { font-size:11px; color:#636882; background:rgba(34,197,94,0.06); border:1px solid rgba(34,197,94,0.15);
         border-radius:6px; padding:8px 10px; margin-bottom:16px; line-height:1.5; }
       .br-actions { display:flex; gap:8px; }
@@ -936,6 +955,30 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
     btn.addEventListener('click', () => {
       downloadReport();
     });
+
+    // Optional native tooltip
+    if (config.tooltipMessage) {
+      const hint = document.createElement('div');
+      hint.id = 'br-widget-hint';
+      // Replace {icon} with the configured icon
+      hint.innerHTML = config.tooltipMessage.replace(/{icon}/g, config.icon);
+      document.body.appendChild(hint);
+      
+      // Animate in
+      setTimeout(() => hint.classList.add('show'), 500);
+      
+      // Auto-hide after 8 seconds or when clicking the button
+      let hidden = false;
+      const hideHint = () => {
+        if (hidden) return;
+        hidden = true;
+        hint.classList.remove('show');
+        setTimeout(() => { if (hint.parentNode) hint.remove(); }, 400);
+      };
+      
+      setTimeout(hideHint, 8000);
+      btn.addEventListener('click', hideHint);
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -950,6 +993,7 @@ ${data.sanitizationSummary?.redactionsByType && Object.keys(data.sanitizationSum
     // Merge options
     if (options.language) config.language = options.language;
     if (options.icon) config.icon = options.icon;
+    if (options.tooltipMessage) config.tooltipMessage = options.tooltipMessage;
     if (options.primaryColor) {
       config.primaryColor = options.primaryColor;
       // Simple heuristic for hover if not provided

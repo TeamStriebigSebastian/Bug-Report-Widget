@@ -21,6 +21,7 @@ To override the configuration, you can initialize it manually:
   BugReportWidget.init({
     language: 'en', // 'de' or 'en'
     icon: '💬', // Customize the floating button icon
+    tooltipMessage: 'Click the <strong>{icon} Button</strong> to report an issue!', // Native onboarding tooltip (use {icon} variable)
     primaryColor: '#e11d48', // Main CI color (e.g. rose-600)
     primaryColorHover: '#be123c', // Hover state
     translations: {
